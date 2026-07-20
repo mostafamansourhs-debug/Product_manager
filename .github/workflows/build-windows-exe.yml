@@ -49,22 +49,20 @@ jobs:
       - name: Package with jpackage
         shell: pwsh
         run: |
-          jpackage --type app-image `
+          jpackage --type exe `
             --name ProductManager `
             --main-class com.productcatalog.App `
             --main-jar products-catalog-1.0.0.jar `
             --runtime-image target/runtime `
             --input target/deps `
             --icon src/main/resources/images/app_icon.ico `
-            --dest target/output `
+            --dest target/installer `
+            --win-menu `
+            --win-shortcut `
             --java-options "--add-opens=javafx.base/com.sun.javafx.event=ALL-UNNAMED --add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED -Dglass.win.uiScale=1"
 
-      - name: Create portable zip
-        shell: pwsh
-        run: Compress-Archive -Path "target/output/ProductManager" -DestinationPath "target/ProductManager-Windows-x64.zip"
-
-      - name: Upload portable zip
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: ProductManager-Windows-x64
-          path: target/ProductManager-Windows-x64.zip
+          name: ProductManager-Windows-x64-Installer
+          path: target/installer/*.exe

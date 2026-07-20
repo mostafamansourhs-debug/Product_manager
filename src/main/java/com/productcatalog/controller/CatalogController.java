@@ -112,7 +112,7 @@ public class CatalogController {
     // ======================== UI BUILDING ========================
 
     private void buildUI() {
-        // Top: Toolbar
+        // Top: Toolbar (wrapped in ScrollPane so it never clips on small windows)
         view.setTop(buildToolbar());
 
         // Center: TabPane (filter selector) + shared Table + Detail + Pagination
@@ -142,8 +142,8 @@ public class CatalogController {
         TabPane tp = new TabPane();
         tp.getStyleClass().add("file-tab-pane");
         tp.setTabClosingPolicy(TabPane.TabClosingPolicy.SELECTED_TAB);
-        tp.setMinHeight(32);
-        tp.setMaxHeight(36);
+        // Don't constrain height — let the tab pane size itself based on font/DPI.
+        // Hardcoded 32-36px was too tight on Windows with DPI scaling.
 
         Tab allTab = new Tab("📦 All Products");
         allTab.setClosable(false);
@@ -188,7 +188,7 @@ public class CatalogController {
         tabPane.getSelectionModel().select(tab);
     }
 
-    private HBox buildToolbar() {
+    private Node buildToolbar() {
         HBox toolbar = new HBox(10);
         toolbar.getStyleClass().add("toolbar");
         toolbar.setPadding(new Insets(8, 12, 8, 12));
@@ -273,9 +273,6 @@ public class CatalogController {
         sortOrderCombo.setMinWidth(60);
         sortOrderCombo.setOnAction(e -> applySort());
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
         progressBar = new ProgressBar(0);
         progressBar.setPrefWidth(150);
         progressBar.setVisible(false);
@@ -288,8 +285,19 @@ public class CatalogController {
 
         toolbar.getChildren().addAll(importButton, exportButton, unselectButton, deleteButton, sep,
                 searchFieldCombo, searchField, clearSearch, sep2, shopLabel, shopCombo, clearShop, sep3, sortLabel,
-                sortFieldCombo, sortOrderCombo, spacer, progressBar, progressLabel);
-        return toolbar;
+                sortFieldCombo, sortOrderCombo, progressBar, progressLabel);
+
+        // Wrap the toolbar in a ScrollPane so it scrolls horizontally
+        // instead of clipping the right side (sort controls) on small windows.
+        ScrollPane toolbarScroll = new ScrollPane(toolbar);
+        toolbarScroll.setFitToHeight(true);
+        toolbarScroll.setFitToWidth(true);
+        toolbarScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        toolbarScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        toolbarScroll.getStyleClass().add("toolbar-scroll");
+        toolbarScroll.setMinHeight(Region.USE_PREF_SIZE);
+
+        return toolbarScroll;
     }
 
     @SuppressWarnings("unchecked")

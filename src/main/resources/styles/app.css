@@ -67,6 +67,16 @@
     -fx-min-height: 48;
 }
 
+.toolbar-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.toolbar-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
 .btn-primary {
     -fx-background-color: #1E88E5;
     -fx-text-fill: white;
@@ -380,7 +390,7 @@
     -fx-border-color: #D0D0D0 #D0D0D0 transparent #D0D0D0;
     -fx-border-radius: 6 6 0 0;
     -fx-border-width: 1;
-    -fx-padding: 5 12 5 12;
+    -fx-padding: 6 14 6 14;
     -fx-cursor: hand;
 }
 
@@ -392,6 +402,7 @@
     -fx-text-fill: #555;
     -fx-font-size: 12px;
     -fx-font-weight: bold;
+    -fx-alignment: CENTER;
 }
 
 .file-tab-pane .tab:selected .tab-label {

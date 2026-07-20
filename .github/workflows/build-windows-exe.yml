@@ -27,8 +27,8 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      - name: Copy dependencies (excluding JavaFX)
-        run: mvn dependency:copy-dependencies -DoutputDirectory=target/deps -DexcludeGroupIds=org.openjfx
+      - name: Copy dependencies
+        run: mvn dependency:copy-dependencies -DoutputDirectory=target/deps
 
       - name: Create runtime image with jlink
         shell: pwsh

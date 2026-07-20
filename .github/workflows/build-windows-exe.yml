@@ -1,0 +1,63 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Download JavaFX 21.0.2 jmods (Windows x64)
+        run: |
+          Invoke-WebRequest -Uri "https://download2.gluonhq.com/openjfx/21.0.2/openjfx-21.0.2_windows-x64_bin-jmods.zip" -OutFile "javafx-jmods.zip"
+          Expand-Archive -Path "javafx-jmods.zip" -DestinationPath "javafx-jmods"
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Copy dependencies (excluding JavaFX)
+        run: mvn dependency:copy-dependencies -DoutputDirectory=target/deps -DexcludeGroupIds=org.openjfx
+
+      - name: Create runtime image with jlink
+        shell: pwsh
+        run: |
+          $jmodsPath = "javafx-jmods/javafx-jmods-21.0.2"
+          $jdkJmods = "$env:JAVA_HOME/jmods"
+          $modPath = "$jmodsPath;$jdkJmods"
+          Write-Host "Module path: $modPath"
+          jlink --module-path "$modPath" `
+            --add-modules javafx.controls,javafx.fxml,javafx.swing,java.sql,java.desktop `
+            --output target/runtime `
+            --no-header-files `
+            --strip-debug
+
+      - name: Package with jpackage
+        shell: pwsh
+        run: |
+          jpackage --type exe `
+            --name ProductManager `
+            --main-class com.productcatalog.App `
+            --main-jar target/products-catalog-1.0.0.jar `
+            --runtime-image target/runtime `
+            --input target/deps `
+            --icon src/main/resources/images/app_icon.ico `
+            --dest target/installer `
+            --java-options "--add-opens=javafx.base/com.sun.javafx.event=ALL-UNNAMED"
+
+      - name: Upload Windows EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProductManager-Windows-x64
+          path: target/installer/*.exe

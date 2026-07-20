@@ -1,0 +1,616 @@
+/*
+ * Products Catalog — Main Stylesheet
+ * Color palette: Blue (#1E88E5) and White (#FFFFFF)
+ * Accent/hover: #1565C0
+ * Light gray: #F5F5F5
+ * Text: #333333
+ */
+
+/* ======================== ROOT ======================== */
+
+.root {
+    -fx-font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 13px;
+    -fx-base: #FFFFFF;
+    -fx-background: #FFFFFF;
+    -fx-accent: #1E88E5;
+    -fx-focus-color: #1E88E5;
+    -fx-faint-focus-color: rgba(30, 136, 229, 0.2);
+}
+
+.root-pane {
+    -fx-background-color: #FFFFFF;
+}
+
+/* ======================== TAB PANE ======================== */
+
+.main-tab-pane > .tab-header-area {
+    -fx-padding: 0 0 0 8px;
+}
+
+.main-tab-pane > .tab-header-area > .tab-header-background {
+    -fx-background-color: #1E88E5;
+}
+
+.main-tab-pane .tab {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
+    -fx-background-radius: 6 6 0 0;
+    -fx-padding: 8 20 8 20;
+    -fx-cursor: hand;
+}
+
+.main-tab-pane .tab:selected {
+    -fx-background-color: #FFFFFF;
+}
+
+.main-tab-pane .tab .tab-label {
+    -fx-text-fill: rgba(255, 255, 255, 0.85);
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.main-tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #1E88E5;
+}
+
+.main-tab-pane .tab:hover:!selected {
+    -fx-background-color: rgba(255, 255, 255, 0.35);
+}
+
+/* ======================== TOOLBAR ======================== */
+
+.toolbar {
+    -fx-background-color: #F8F9FA;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 0 1 0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 4, 0, 0, 2);
+}
+
+.btn-primary {
+    -fx-background-color: #1E88E5;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 16 8 16;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(30, 136, 229, 0.3), 4, 0, 0, 1);
+}
+
+.btn-primary:hover {
+    -fx-background-color: #1565C0;
+    -fx-effect: dropshadow(gaussian, rgba(21, 101, 192, 0.4), 6, 0, 0, 2);
+}
+
+.btn-primary:pressed {
+    -fx-background-color: #0D47A1;
+}
+
+.btn-primary:disabled {
+    -fx-background-color: #B0BEC5;
+    -fx-effect: none;
+    -fx-cursor: default;
+}
+
+.btn-danger {
+    -fx-background-color: #E53935;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 16 8 16;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(229, 57, 53, 0.3), 4, 0, 0, 1);
+}
+
+.btn-danger:hover {
+    -fx-background-color: #C62828;
+    -fx-effect: dropshadow(gaussian, rgba(198, 40, 40, 0.4), 6, 0, 0, 2);
+}
+
+.btn-danger:pressed {
+    -fx-background-color: #B71C1C;
+}
+
+.btn-danger:disabled {
+    -fx-background-color: #B0BEC5;
+    -fx-effect: none;
+    -fx-cursor: default;
+}
+
+.btn-clear {
+    -fx-background-color: transparent;
+    -fx-text-fill: #999;
+    -fx-padding: 4 8;
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+}
+
+.btn-clear:hover {
+    -fx-text-fill: #333;
+}
+
+/* ======================== SEARCH ======================== */
+
+.search-field {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #D0D0D0;
+    -fx-border-radius: 20;
+    -fx-background-radius: 20;
+    -fx-padding: 6 14 6 14;
+    -fx-prompt-text-fill: #AAA;
+}
+
+.search-field:focused {
+    -fx-border-color: #1E88E5;
+    -fx-effect: dropshadow(gaussian, rgba(30, 136, 229, 0.2), 6, 0, 0, 0);
+}
+
+/* ======================== TABLE ======================== */
+
+.product-table {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent;
+}
+
+.product-table .column-header-background {
+    -fx-background-color: #F5F5F5;
+}
+
+.product-table .column-header {
+    -fx-background-color: #F5F5F5;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 0 2 0;
+    -fx-padding: 8 4 8 4;
+}
+
+.product-table .column-header .label {
+    -fx-text-fill: #555;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-text-overrun: clip;
+}
+
+.product-table .table-row-cell {
+    -fx-border-color: transparent transparent #F0F0F0 transparent;
+    -fx-cell-size: 108px;
+}
+
+.product-table .table-row-cell:odd {
+    -fx-background-color: #FAFAFA;
+}
+
+.product-table .table-row-cell:even {
+    -fx-background-color: #FFFFFF;
+}
+
+.product-table .table-row-cell:selected {
+    -fx-background-color: #E3F2FD;
+}
+
+.product-table .table-row-cell:selected .text {
+    -fx-fill: #333;
+}
+
+.product-table .table-row-cell:hover:!selected {
+    -fx-background-color: #F0F7FF;
+}
+
+.product-table .table-cell {
+    -fx-text-fill: #333;
+    -fx-padding: 4 8 4 8;
+    -fx-alignment: CENTER;
+}
+
+.product-table .placeholder .label {
+    -fx-text-fill: #999;
+    -fx-font-size: 15px;
+}
+
+/* ======================== SHOP LINKS ======================== */
+
+.shop-link {
+    -fx-text-fill: #1E88E5;
+    -fx-padding: 0 2;
+    -fx-font-size: 12px;
+    -fx-underline: false;
+    -fx-border-color: transparent;
+}
+
+.shop-link:hover {
+    -fx-text-fill: #1565C0;
+    -fx-underline: true;
+}
+
+/* ======================== DETAIL PANEL ======================== */
+
+.detail-panel {
+    -fx-background-color: #F8FBFF;
+    -fx-border-color: #1E88E5;
+    -fx-border-width: 2 0 0 0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 6, 0, 0, -2);
+}
+
+.detail-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1E88E5;
+}
+
+.btn-close-detail {
+    -fx-background-color: transparent;
+    -fx-text-fill: #999;
+    -fx-font-size: 16px;
+    -fx-cursor: hand;
+    -fx-padding: 2 8;
+}
+
+.btn-close-detail:hover {
+    -fx-text-fill: #E53935;
+    -fx-background-color: #FFF0F0;
+    -fx-background-radius: 4;
+}
+
+.shop-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #555;
+    -fx-font-size: 13px;
+}
+
+.shop-slot-label {
+    -fx-text-fill: #888;
+    -fx-font-size: 12px;
+}
+
+.shop-field {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #D0D0D0;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 4 8;
+    -fx-font-size: 12px;
+}
+
+.shop-field:focused {
+    -fx-border-color: #1E88E5;
+    -fx-effect: dropshadow(gaussian, rgba(30, 136, 229, 0.15), 4, 0, 0, 0);
+}
+
+.shop-grid {
+    -fx-padding: 4 0 0 0;
+}
+
+/* ======================== PAGINATION ======================== */
+
+.pagination-bar {
+    -fx-background-color: #F8F9FA;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 1 0 0 0;
+}
+
+.btn-page {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #D0D0D0;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 4 12;
+    -fx-cursor: hand;
+    -fx-text-fill: #555;
+    -fx-font-size: 12px;
+}
+
+.btn-page:hover {
+    -fx-background-color: #E3F2FD;
+    -fx-border-color: #1E88E5;
+    -fx-text-fill: #1E88E5;
+}
+
+.page-label {
+    -fx-text-fill: #666;
+    -fx-font-weight: bold;
+    -fx-padding: 0 12;
+}
+
+/* ======================== STATUS BAR ======================== */
+
+.status-bar {
+    -fx-background-color: #F5F5F5;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 1 0 0 0;
+}
+
+.status-count {
+    -fx-text-fill: #666;
+    -fx-font-size: 12px;
+}
+
+.status-db {
+    -fx-text-fill: #1E88E5;
+    -fx-font-size: 11px;
+}
+
+.global-status-bar {
+    -fx-background-color: #1E88E5;
+}
+
+.global-status {
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+}
+
+/* ======================== PROGRESS ======================== */
+
+.progress-bar {
+    -fx-pref-height: 6px;
+}
+
+.progress-bar > .track {
+    -fx-background-color: #E0E0E0;
+    -fx-background-radius: 3;
+}
+
+.progress-bar > .bar {
+    -fx-background-color: #1E88E5;
+    -fx-background-radius: 3;
+}
+
+.progress-label {
+    -fx-text-fill: #666;
+    -fx-font-size: 11px;
+}
+
+/* ======================== FILE TABS ======================== */
+
+.file-tab-pane {
+    -fx-background-color: #F0F4F8;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 0 1 0;
+}
+
+.file-tab-pane > .tab-header-area {
+    -fx-padding: 4 8 0 8;
+}
+
+.file-tab-pane > .tab-header-area > .tab-header-background {
+    -fx-background-color: #F0F4F8;
+}
+
+.file-tab-pane .tab {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 6 6 0 0;
+    -fx-border-color: #D0D0D0 #D0D0D0 transparent #D0D0D0;
+    -fx-border-radius: 6 6 0 0;
+    -fx-border-width: 1;
+    -fx-padding: 5 12 5 12;
+    -fx-cursor: hand;
+}
+
+.file-tab-pane .tab:selected {
+    -fx-background-color: #1E88E5;
+}
+
+.file-tab-pane .tab .tab-label {
+    -fx-text-fill: #555;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.file-tab-pane .tab:selected .tab-label {
+    -fx-text-fill: white;
+}
+
+.file-tab-pane .tab:hover:!selected {
+    -fx-background-color: #E3F2FD;
+}
+
+.file-tab-pane .tab-close-button {
+    -fx-background-color: rgba(255,255,255,0.7);
+    -fx-background-radius: 50%;
+    -fx-padding: 1;
+}
+
+.file-tab-pane .tab:selected .tab-close-button {
+    -fx-background-color: rgba(255,255,255,0.3);
+}
+
+/* ======================== SHOP DISCOVERY TAB ======================== */
+
+
+.shop-selector {
+    -fx-background-color: linear-gradient(to bottom, #E3F2FD, #FFFFFF);
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 0 1 0;
+}
+
+.shop-title {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1E88E5;
+}
+
+.shop-subtitle {
+    -fx-text-fill: #888;
+    -fx-font-size: 13px;
+}
+
+.shop-search-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #555;
+}
+
+.shop-combo {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #D0D0D0;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+.result-label {
+    -fx-text-fill: #1E88E5;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+}
+
+.shop-product-list {
+    -fx-background-color: #FFFFFF;
+}
+
+.shop-scroll {
+    -fx-background-color: #FFFFFF;
+}
+
+.shop-scroll > .viewport {
+    -fx-background-color: #FFFFFF;
+}
+
+.empty-label {
+    -fx-text-fill: #AAA;
+    -fx-font-size: 15px;
+    -fx-padding: 40 0;
+    -fx-alignment: CENTER;
+}
+
+/* ======================== PRODUCT CARDS ======================== */
+
+.product-card {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E8E8E8;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 4, 0, 0, 1);
+}
+
+.product-card:hover {
+    -fx-border-color: #1E88E5;
+    -fx-effect: dropshadow(gaussian, rgba(30, 136, 229, 0.15), 8, 0, 0, 2);
+}
+
+.card-number {
+    -fx-text-fill: #1E88E5;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.card-image-container {
+    -fx-background-color: #F5F5F5;
+    -fx-background-radius: 6;
+    -fx-border-color: #E8E8E8;
+    -fx-border-radius: 6;
+    -fx-padding: 4;
+}
+
+.card-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333;
+}
+
+.card-meta {
+    -fx-text-fill: #888;
+    -fx-font-size: 12px;
+}
+
+.card-desc {
+    -fx-text-fill: #666;
+    -fx-font-size: 12px;
+}
+
+/* ======================== SCROLLBARS ======================== */
+
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .track {
+    -fx-background-color: #F5F5F5;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #C0C0C0;
+    -fx-background-radius: 4;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #A0A0A0;
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-shape: "";
+    -fx-padding: 0;
+}
+
+/* ======================== COMBO BOX ======================== */
+
+.combo-box {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #D0D0D0;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+.combo-box:focused {
+    -fx-border-color: #1E88E5;
+}
+
+.combo-box .list-cell {
+    -fx-text-fill: #333;
+    -fx-padding: 4 8;
+}
+
+.combo-box-popup .list-view .list-cell:hover {
+    -fx-background-color: #E3F2FD;
+}
+
+.combo-box-popup .list-view .list-cell:filled:selected {
+    -fx-background-color: #1E88E5;
+    -fx-text-fill: white;
+}
+
+/* ======================== ALERTS / DIALOGS ======================== */
+
+.dialog-pane {
+    -fx-background-color: #FFFFFF;
+}
+
+.dialog-pane > .button-bar > .container {
+    -fx-background-color: #F5F5F5;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: #1E88E5;
+}
+
+.dialog-pane .header-panel .label {
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+/* ======================== CHECKBOX ======================== */
+
+.check-box .box {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #C0C0C0;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+
+.check-box:selected .box {
+    -fx-background-color: #1E88E5;
+    -fx-border-color: #1E88E5;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: white;
+}
+
+/* ======================== SEPARATOR ======================== */
+
+.separator:vertical .line {
+    -fx-border-color: #D0D0D0;
+    -fx-border-width: 0 0.5 0 0.5;
+}

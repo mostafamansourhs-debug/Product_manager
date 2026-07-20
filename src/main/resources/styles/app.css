@@ -24,11 +24,11 @@
 
 /* ======================== TAB PANE ======================== */
 
-.main-tab-pane > .tab-header-area {
+.main-tab-pane>.tab-header-area {
     -fx-padding: 0 0 0 8px;
 }
 
-.main-tab-pane > .tab-header-area > .tab-header-background {
+.main-tab-pane>.tab-header-area>.tab-header-background {
     -fx-background-color: #1E88E5;
 }
 
@@ -53,7 +53,7 @@
     -fx-text-fill: #1E88E5;
 }
 
-.main-tab-pane .tab:hover:!selected {
+.main-tab-pane .tab:hover: !selected {
     -fx-background-color: rgba(255, 255, 255, 0.35);
 }
 
@@ -63,7 +63,8 @@
     -fx-background-color: #F8F9FA;
     -fx-border-color: #E0E0E0;
     -fx-border-width: 0 0 1 0;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 4, 0, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.06), 4, 0, 0, 2);
+    -fx-min-height: 48;
 }
 
 .btn-primary {
@@ -190,7 +191,7 @@
     -fx-fill: #333;
 }
 
-.product-table .table-row-cell:hover:!selected {
+.product-table .table-row-cell:hover: !selected {
     -fx-background-color: #F0F7FF;
 }
 
@@ -226,7 +227,7 @@
     -fx-background-color: #F8FBFF;
     -fx-border-color: #1E88E5;
     -fx-border-width: 2 0 0 0;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 6, 0, 0, -2);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.08), 6, 0, 0, -2);
 }
 
 .detail-title {
@@ -342,12 +343,12 @@
     -fx-pref-height: 6px;
 }
 
-.progress-bar > .track {
+.progress-bar>.track {
     -fx-background-color: #E0E0E0;
     -fx-background-radius: 3;
 }
 
-.progress-bar > .bar {
+.progress-bar>.bar {
     -fx-background-color: #1E88E5;
     -fx-background-radius: 3;
 }
@@ -365,11 +366,11 @@
     -fx-border-width: 0 0 1 0;
 }
 
-.file-tab-pane > .tab-header-area {
+.file-tab-pane>.tab-header-area {
     -fx-padding: 4 8 0 8;
 }
 
-.file-tab-pane > .tab-header-area > .tab-header-background {
+.file-tab-pane>.tab-header-area>.tab-header-background {
     -fx-background-color: #F0F4F8;
 }
 
@@ -397,18 +398,18 @@
     -fx-text-fill: white;
 }
 
-.file-tab-pane .tab:hover:!selected {
+.file-tab-pane .tab:hover: !selected {
     -fx-background-color: #E3F2FD;
 }
 
 .file-tab-pane .tab-close-button {
-    -fx-background-color: rgba(255,255,255,0.7);
+    -fx-background-color: rgba(255, 255, 255, 0.7);
     -fx-background-radius: 50%;
     -fx-padding: 1;
 }
 
 .file-tab-pane .tab:selected .tab-close-button {
-    -fx-background-color: rgba(255,255,255,0.3);
+    -fx-background-color: rgba(255, 255, 255, 0.3);
 }
 
 /* ======================== SHOP DISCOVERY TAB ======================== */
@@ -457,7 +458,7 @@
     -fx-background-color: #FFFFFF;
 }
 
-.shop-scroll > .viewport {
+.shop-scroll>.viewport {
     -fx-background-color: #FFFFFF;
 }
 
@@ -475,7 +476,7 @@
     -fx-border-color: #E8E8E8;
     -fx-border-radius: 8;
     -fx-background-radius: 8;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 4, 0, 0, 1);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.05), 4, 0, 0, 1);
 }
 
 .product-card:hover {
@@ -577,7 +578,7 @@
     -fx-background-color: #FFFFFF;
 }
 
-.dialog-pane > .button-bar > .container {
+.dialog-pane>.button-bar>.container {
     -fx-background-color: #F5F5F5;
 }
 

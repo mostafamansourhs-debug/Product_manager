@@ -194,12 +194,12 @@ public class CatalogController {
         toolbar.setPadding(new Insets(8, 12, 8, 12));
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
-        Button importButton = new Button("📂 Import");
+        Button importButton = new Button("\uD83D\uDCC2 Import");
         importButton.getStyleClass().add("btn-primary");
         importButton.setOnAction(e -> handleImport());
         importButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
-        exportButton = new Button("📤 Export");
+        exportButton = new Button("\uD83D\uDCE4 Export");
         exportButton.getStyleClass().add("btn-primary");
         exportButton.setOnAction(e -> handleExport());
         exportButton.disableProperty().bind(selectedCount.lessThanOrEqualTo(0));
@@ -211,54 +211,66 @@ public class CatalogController {
         unselectButton.disableProperty().bind(selectedCount.lessThanOrEqualTo(0));
         unselectButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
-        Button deleteButton = new Button("🗑 Delete");
+        Button deleteButton = new Button("\uD83D\uDDD1 Delete");
         deleteButton.getStyleClass().add("btn-danger");
         deleteButton.setOnAction(e -> handleDelete());
         deleteButton.disableProperty().bind(selectedCount.lessThanOrEqualTo(0));
         deleteButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
         Separator sep = new Separator(Orientation.VERTICAL);
+        sep.setMinWidth(Region.USE_PREF_SIZE);
 
         searchFieldCombo = new ComboBox<>(FXCollections.observableArrayList(
                 "All Fields", "Product Name", "Code", "Made In", "Description"));
         searchFieldCombo.setValue("All Fields");
         searchFieldCombo.setOnAction(e -> applyFilter());
+        searchFieldCombo.setMinWidth(Region.USE_PREF_SIZE);
 
         searchField = new TextField();
         searchField.setPromptText("Search...");
         searchField.setPrefWidth(200);
+        searchField.setMinWidth(120);
         searchField.getStyleClass().add("search-field");
         searchField.textProperty().addListener((obs, old, val) -> applyFilter());
 
         Button clearSearch = new Button("✕");
         clearSearch.getStyleClass().add("btn-clear");
         clearSearch.setOnAction(e -> searchField.clear());
+        clearSearch.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
         Separator sep2 = new Separator(Orientation.VERTICAL);
+        sep2.setMinWidth(Region.USE_PREF_SIZE);
 
-        Label shopLabel = new Label("🏪 Shop:");
+        Label shopLabel = new Label("\uD83C\uDFEA Shop:");
+        shopLabel.setMinWidth(Region.USE_PREF_SIZE);
         shopCombo = new ComboBox<>(allShopCodes);
         shopCombo.setPromptText("All Shops");
         shopCombo.setPrefWidth(120);
+        shopCombo.setMinWidth(80);
         shopCombo.setOnAction(e -> applyFilter());
 
         Button clearShop = new Button("✕");
         clearShop.getStyleClass().add("btn-clear");
         clearShop.setOnAction(e -> shopCombo.setValue(null));
+        clearShop.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
         Separator sep3 = new Separator(Orientation.VERTICAL);
+        sep3.setMinWidth(Region.USE_PREF_SIZE);
 
         Label sortLabel = new Label("↕ Sort:");
+        sortLabel.setMinWidth(Region.USE_PREF_SIZE);
         sortFieldCombo = new ComboBox<>(FXCollections.observableArrayList(
                 "None", "Product Name", "Code", "Made In"));
         sortFieldCombo.setValue("None");
         sortFieldCombo.setPrefWidth(120);
+        sortFieldCombo.setMinWidth(80);
         sortFieldCombo.setOnAction(e -> applySort());
 
         sortOrderCombo = new ComboBox<>(FXCollections.observableArrayList(
                 "ASC", "DESC"));
         sortOrderCombo.setValue("ASC");
         sortOrderCombo.setPrefWidth(85);
+        sortOrderCombo.setMinWidth(60);
         sortOrderCombo.setOnAction(e -> applySort());
 
         Region spacer = new Region();

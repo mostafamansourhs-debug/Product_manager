@@ -28,7 +28,10 @@ jobs:
         run: mvn clean package -DskipTests
 
       - name: Copy dependencies
-        run: mvn dependency:copy-dependencies -DoutputDirectory=target/deps
+        shell: pwsh
+        run: |
+          mvn dependency:copy-dependencies -DoutputDirectory=target/deps
+          Copy-Item "target/products-catalog-1.0.0.jar" -Destination "target/deps/"
 
       - name: Create runtime image with jlink
         shell: pwsh
@@ -49,7 +52,7 @@ jobs:
           jpackage --type exe `
             --name ProductManager `
             --main-class com.productcatalog.App `
-            --main-jar target/products-catalog-1.0.0.jar `
+            --main-jar products-catalog-1.0.0.jar `
             --runtime-image target/runtime `
             --input target/deps `
             --icon src/main/resources/images/app_icon.ico `

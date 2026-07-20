@@ -57,7 +57,7 @@ jobs:
             --input target/deps `
             --icon src/main/resources/images/app_icon.ico `
             --dest target/output `
-            --java-options "--add-opens=javafx.base/com.sun.javafx.event=ALL-UNNAMED"
+            --java-options "--add-opens=javafx.base/com.sun.javafx.event=ALL-UNNAMED --add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED -Dglass.win.uiScale=1"
 
       - name: Create portable zip
         shell: pwsh

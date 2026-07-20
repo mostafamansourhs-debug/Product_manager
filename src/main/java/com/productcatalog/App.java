@@ -72,6 +72,8 @@ public class App extends Application {
             DatabaseManager.getInstance().close();
         });
 
+        stage.setX(100);
+        stage.setY(50);
         stage.show();
         LOG.info("Application started.");
     }

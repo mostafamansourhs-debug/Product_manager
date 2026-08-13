@@ -39,14 +39,15 @@ public class ExcelExportService {
                     CellStyle dataStyle = createDataStyle(workbook);
 
                     // Headers
-                    String[] headers = new String[5 + Product.MAX_SHOP_CODES];
+                    String[] headers = new String[6 + Product.MAX_SHOP_CODES];
                     headers[0] = "Product Name";
                     headers[1] = "Made In";
                     headers[2] = "Code";
-                    headers[3] = "Description";
-                    headers[4] = "Image";
+                    headers[3] = "SKU";
+                    headers[4] = "Description";
+                    headers[5] = "Image";
                     for (int i = 0; i < Product.MAX_SHOP_CODES; i++) {
-                        headers[5 + i] = "Shop " + (i + 1);
+                        headers[6 + i] = "Shop " + (i + 1);
                     }
 
                     Row headerRow = sheet.createRow(0);
@@ -80,7 +81,11 @@ public class ExcelExportService {
                         codeCell.setCellValue(product.getCode());
                         codeCell.setCellStyle(dataStyle);
 
-                        Cell descCell = row.createCell(3);
+                        Cell skuCell = row.createCell(3);
+                        skuCell.setCellValue(product.getSku());
+                        skuCell.setCellStyle(dataStyle);
+
+                        Cell descCell = row.createCell(4);
                         descCell.setCellValue(product.getDescription());
                         descCell.setCellStyle(dataStyle);
 
@@ -89,7 +94,7 @@ public class ExcelExportService {
 
                         // Shop codes
                         for (int i = 0; i < Product.MAX_SHOP_CODES; i++) {
-                            Cell shopCell = row.createCell(5 + i);
+                            Cell shopCell = row.createCell(6 + i);
                             shopCell.setCellValue(product.getShopCode(i));
                             shopCell.setCellStyle(dataStyle);
                         }
@@ -99,14 +104,14 @@ public class ExcelExportService {
                     }
 
                     // Auto-size text columns
-                    for (int i = 0; i < 4; i++) {
+                    for (int i = 0; i < 5; i++) {
                         sheet.autoSizeColumn(i);
                     }
                     // Set image column width
-                    sheet.setColumnWidth(4, imageColWidth * 40);
+                    sheet.setColumnWidth(5, imageColWidth * 40);
 
                     // Auto-size shop columns
-                    for (int i = 5; i < 5 + Product.MAX_SHOP_CODES; i++) {
+                    for (int i = 6; i < 6 + Product.MAX_SHOP_CODES; i++) {
                         sheet.setColumnWidth(i, 12 * 256); // 12 chars wide
                     }
 
@@ -150,11 +155,11 @@ public class ExcelExportService {
 
             int pictureIdx = workbook.addPicture(imageBytes, pictureType);
 
-            // Create anchor — image fits in the cell at column 4
+            // Create anchor — image fits in the cell at column 5
             XSSFClientAnchor anchor = workbook.getCreationHelper().createClientAnchor();
-            anchor.setCol1(4);
+            anchor.setCol1(5);
             anchor.setRow1(rowIndex);
-            anchor.setCol2(5);
+            anchor.setCol2(6);
             anchor.setRow2(rowIndex + 1);
             anchor.setDx1(Units.EMU_PER_POINT * 2);
             anchor.setDy1(Units.EMU_PER_POINT * 2);

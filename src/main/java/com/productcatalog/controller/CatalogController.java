@@ -388,6 +388,7 @@ public class CatalogController {
         TableColumn<Product, String> nameCol = createTextColumn("Product Name", "name", 200);
         TableColumn<Product, String> madeInCol = createTextColumn("Made In", "madeIn", 100);
         TableColumn<Product, String> codeCol = createTextColumn("Code", "code", 100);
+        TableColumn<Product, String> skuCol = createTextColumn("SKU", "sku", 200);
         TableColumn<Product, String> descCol = createTextColumn("Description", "description", 250);
 
         // Shops summary column with clickable codes
@@ -431,7 +432,7 @@ public class CatalogController {
             }
         });
 
-        table.getColumns().addAll(checkCol, imageCol, nameCol, madeInCol, codeCol, descCol, shopsCol);
+        table.getColumns().addAll(checkCol, imageCol, nameCol, madeInCol, codeCol, skuCol, descCol, shopsCol);
 
         // Selection listener — show detail panel
         table.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
@@ -452,6 +453,7 @@ public class CatalogController {
             case "name" -> col.setCellValueFactory(data -> data.getValue().nameProperty());
             case "madeIn" -> col.setCellValueFactory(data -> data.getValue().madeInProperty());
             case "code" -> col.setCellValueFactory(data -> data.getValue().codeProperty());
+            case "sku" -> col.setCellValueFactory(data -> data.getValue().skuProperty());
             case "description" -> col.setCellValueFactory(data -> data.getValue().descriptionProperty());
         }
         col.setCellFactory(c -> new TableCell<>() {

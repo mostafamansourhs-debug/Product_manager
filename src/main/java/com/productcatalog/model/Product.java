@@ -16,6 +16,7 @@ public class Product {
     private final StringProperty code;
     private final StringProperty description;
     private final StringProperty imagePath;
+    private final StringProperty sku;
     private final StringProperty[] shopCodes;
     private final BooleanProperty selected;
     private String sourceFile; // which Excel file this came from
@@ -28,6 +29,7 @@ public class Product {
         this.name = new SimpleStringProperty(name != null ? name : "");
         this.madeIn = new SimpleStringProperty(madeIn != null ? madeIn : "");
         this.code = new SimpleStringProperty(code != null ? code : "");
+        this.sku = new SimpleStringProperty(java.util.UUID.randomUUID().toString());
         this.description = new SimpleStringProperty(description != null ? description : "");
         this.imagePath = new SimpleStringProperty(imagePath);
         this.selected = new SimpleBooleanProperty(false);
@@ -55,6 +57,11 @@ public class Product {
     public String getCode() { return code.get(); }
     public void setCode(String value) { code.set(value != null ? value : ""); }
     public StringProperty codeProperty() { return code; }
+
+    // --- SKU ---
+    public String getSku() { return sku.get(); }
+    public void setSku(String value) { sku.set(value != null ? value : ""); }
+    public StringProperty skuProperty() { return sku; }
 
     // --- Description ---
     public String getDescription() { return description.get(); }

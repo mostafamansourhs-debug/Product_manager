@@ -28,11 +28,11 @@ public class ProductDAO {
      */
     public boolean insert(Product product) {
         StringBuilder sql = new StringBuilder();
-        sql.append("INSERT INTO products (name, made_in, code, description, image_path, source_file");
+        sql.append("INSERT INTO products (sku, name, made_in, code, description, image_path, source_file");
         for (int i = 1; i <= 40; i++) {
             sql.append(", shop_code_").append(i);
         }
-        sql.append(") VALUES (?, ?, ?, ?, ?, ?");
+        sql.append(") VALUES (?, ?, ?, ?, ?, ?, ?");
         for (int i = 0; i < 40; i++) {
             sql.append(", ?");
         }
@@ -42,14 +42,15 @@ public class ProductDAO {
 
         try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql.toString(),
                 Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, product.getName());
-            ps.setString(2, product.getMadeIn());
-            ps.setString(3, product.getCode());
-            ps.setString(4, product.getDescription());
-            ps.setString(5, product.getImagePath());
-            ps.setString(6, product.getSourceFile());
+            ps.setString(1, product.getSku());
+            ps.setString(2, product.getName());
+            ps.setString(3, product.getMadeIn());
+            ps.setString(4, product.getCode());
+            ps.setString(5, product.getDescription());
+            ps.setString(6, product.getImagePath());
+            ps.setString(7, product.getSourceFile());
             for (int i = 0; i < 40; i++) {
-                ps.setString(7 + i, product.getShopCode(i));
+                ps.setString(8 + i, product.getShopCode(i));
             }
             int rows = ps.executeUpdate();
             if (rows > 0) {
@@ -101,7 +102,7 @@ public class ProductDAO {
      */
     public void update(Product product) {
         StringBuilder sql = new StringBuilder(
-                "UPDATE products SET name=?, made_in=?, description=?, image_path=?, selected=?");
+                "UPDATE products SET name=?, made_in=?, description=?, image_path=?, selected=?, sku=?");
         for (int i = 1; i <= 40; i++) {
             sql.append(", shop_code_").append(i).append("=?");
         }
@@ -113,10 +114,11 @@ public class ProductDAO {
             ps.setString(3, product.getDescription());
             ps.setString(4, product.getImagePath());
             ps.setInt(5, product.isSelected() ? 1 : 0);
+            ps.setString(6, product.getSku());
             for (int i = 0; i < 40; i++) {
-                ps.setString(6 + i, product.getShopCode(i));
+                ps.setString(7 + i, product.getShopCode(i));
             }
-            ps.setString(46, product.getCode());
+            ps.setString(47, product.getCode());
             ps.executeUpdate();
         } catch (SQLException e) {
             LOG.log(Level.WARNING, "Error updating product: " + product.getCode(), e);
@@ -215,6 +217,7 @@ public class ProductDAO {
     private Product mapRow(ResultSet rs) throws SQLException {
         Product p = new Product();
         p.setId(rs.getInt("id"));
+        p.setSku(rs.getString("sku"));
         p.setName(rs.getString("name"));
         p.setMadeIn(rs.getString("made_in"));
         p.setCode(rs.getString("code"));

@@ -455,16 +455,26 @@ public class CatalogController {
             case "description" -> col.setCellValueFactory(data -> data.getValue().descriptionProperty());
         }
         col.setCellFactory(c -> new TableCell<>() {
+            private final TextField textField = new TextField();
+            {
+                textField.setEditable(false);
+                textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 0;");
+            }
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
                     setText(null);
+                    setGraphic(null);
                     setTooltip(null);
                 } else {
-                    setText(item);
+                    setText(null);
+                    textField.setText(item);
+                    setGraphic(textField);
                     if (item.length() > 40) {
                         setTooltip(new Tooltip(item));
+                    } else {
+                        setTooltip(null);
                     }
                 }
             }
@@ -1043,14 +1053,37 @@ public class CatalogController {
             progressBar.progressProperty().unbind();
             progressLabel.textProperty().unbind();
 
+            // Delete exported products
+            List<String> codes = selected.stream()
+                    .map(Product::getCode)
+                    .collect(Collectors.toList());
+
+            int deleted = productDAO.deleteByCodes(codes);
+            allProducts.removeAll(selected);
+
+            // Close detail panel if the currently displayed product was deleted
+            if (currentDetailProduct != null && codes.stream()
+                    .anyMatch(c -> c.equalsIgnoreCase(currentDetailProduct.getCode()))) {
+                hideDetailPanel();
+            }
+
+            if (headerCheckBox != null)
+                headerCheckBox.setSelected(false);
+            
+            setupFilter();
+            refreshShopCodes();
+            refreshPage();
+            updateLoadedCount();
+            updateSelectedCount();
+
             Alert alert = new Alert(Alert.AlertType.INFORMATION,
-                    "Successfully exported " + selected.size() + " products to:\n" + file.getName());
-            alert.setTitle("Export Complete");
+                    "Successfully exported and deleted " + deleted + " products to:\n" + file.getName());
+            alert.setTitle("Export and Delete Complete");
             alert.setHeaderText("Export Successful");
             alert.getDialogPane().getStylesheets().add(
                     getClass().getResource("/styles/app.css").toExternalForm());
             alert.showAndWait();
-            statusLabel.setText("Export complete: " + selected.size() + " products.");
+            statusLabel.setText("Export complete: " + deleted + " products exported and deleted.");
         }));
 
         task.setOnFailed(e -> Platform.runLater(() -> {

@@ -46,6 +46,7 @@ public class DatabaseManager {
         StringBuilder sql = new StringBuilder();
         sql.append("CREATE TABLE IF NOT EXISTS products (");
         sql.append("id INTEGER PRIMARY KEY AUTOINCREMENT, ");
+        sql.append("sku TEXT UNIQUE NOT NULL, ");
         sql.append("name TEXT NOT NULL DEFAULT '', ");
         sql.append("made_in TEXT NOT NULL DEFAULT '', ");
         sql.append("code TEXT UNIQUE NOT NULL, ");
@@ -60,6 +61,25 @@ public class DatabaseManager {
 
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sql.toString());
+        }
+
+        // Try to alter existing table to add sku in case DB already exists
+        try (Statement stmt = connection.createStatement()) {
+            try {
+                stmt.execute("ALTER TABLE products ADD COLUMN sku TEXT");
+                // populate existing records with a UUID
+                try (ResultSet rs = stmt.executeQuery("SELECT id FROM products WHERE sku IS NULL");
+                     PreparedStatement updatePs = connection.prepareStatement("UPDATE products SET sku = ? WHERE id = ?")) {
+                    while (rs.next()) {
+                        updatePs.setString(1, java.util.UUID.randomUUID().toString());
+                        updatePs.setInt(2, rs.getInt(1));
+                        updatePs.executeUpdate();
+                    }
+                }
+                stmt.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku)");
+            } catch (SQLException ignore) {
+                // Column might already exist
+            }
         }
 
         // Try to alter existing table to add new columns (21-40) in case DB already exists

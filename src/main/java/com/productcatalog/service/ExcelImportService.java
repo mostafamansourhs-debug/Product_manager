@@ -23,6 +23,7 @@ public class ExcelImportService {
     private static final String COL_MADE_IN = "made in";
     private static final String COL_CODE = "code";
     private static final String COL_DESCRIPTION = "description";
+    private static final String COL_SKU = "sku";
 
     /**
      * Result of an import operation.
@@ -158,7 +159,23 @@ public class ExcelImportService {
                         }
 
                         Product product = new Product(name, madeIn, code, description, imagePath);
+                        if (colMap.containsKey(COL_SKU)) {
+                            String sku = getCellValue(row, colMap.get(COL_SKU), formatter).trim();
+                            if (!sku.isEmpty()) {
+                                product.setSku(sku);
+                            }
+                        }
                         product.setSourceFile(file.getName() + " [" + sheet.getSheetName() + "]");
+                        
+                        // Extract shop codes
+                        for (int sIdx = 1; sIdx <= Product.MAX_SHOP_CODES; sIdx++) {
+                            String shopHeader = "shop " + sIdx;
+                            if (colMap.containsKey(shopHeader)) {
+                                String shopVal = getCellValue(row, colMap.get(shopHeader), formatter).trim();
+                                product.setShopCode(sIdx - 1, shopVal);
+                            }
+                        }
+
                         result.products.add(product);
                         result.totalRows++;
 

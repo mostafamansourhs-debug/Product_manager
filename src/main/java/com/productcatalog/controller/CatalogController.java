@@ -426,7 +426,13 @@ public class CatalogController {
                     setStyle("-fx-text-fill: #999;");
                 } else {
                     setText(null);
-                    setGraphic(flow);
+                    ScrollPane scrollPane = new ScrollPane(flow);
+                    scrollPane.setFitToWidth(true);
+                    scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+                    scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+                    scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-padding: 0;");
+                    scrollPane.setMaxHeight(90);
+                    setGraphic(scrollPane);
                     setStyle("");
                 }
             }

@@ -64,6 +64,7 @@ public class CatalogController {
     private ComboBox<String> sortFieldCombo;
     private ComboBox<String> sortOrderCombo;
     private Button exportButton;
+    private Button exportByShopButton;
     private Label loadedCountLabel;
     private Label selectedCountLabel;
     private ProgressBar progressBar;
@@ -205,6 +206,11 @@ public class CatalogController {
         exportButton.disableProperty().bind(selectedCount.lessThanOrEqualTo(0));
         exportButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
+        exportByShopButton = new Button("\uD83D\uDCE4 Export by Shop");
+        exportByShopButton.getStyleClass().add("btn-primary");
+        exportByShopButton.setOnAction(e -> handleExportByShop());
+        exportByShopButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
+
         Button unselectButton = new Button("✕ Unselect");
         unselectButton.getStyleClass().add("btn-secondary");
         unselectButton.setOnAction(e -> handleUnselect());
@@ -283,7 +289,11 @@ public class CatalogController {
         progressLabel.setVisible(false);
         progressLabel.managedProperty().bind(progressLabel.visibleProperty());
 
-        toolbar.getChildren().addAll(importButton, exportButton, unselectButton, deleteButton, sep,
+        exportByShopButton.disableProperty().bind(Bindings.createBooleanBinding(() -> {
+            return selectedCount.get() <= 0 || shopCombo.getValue() == null || shopCombo.getValue().trim().isEmpty();
+        }, selectedCount, shopCombo.valueProperty()));
+
+        toolbar.getChildren().addAll(importButton, exportButton, exportByShopButton, unselectButton, deleteButton, sep,
                 searchFieldCombo, searchField, clearSearch, sep2, shopLabel, shopCombo, clearShop, sep3, sortLabel,
                 sortFieldCombo, sortOrderCombo, progressBar, progressLabel);
 
@@ -1070,6 +1080,93 @@ public class CatalogController {
             allProducts.removeAll(selected);
 
             // Close detail panel if the currently displayed product was deleted
+            if (currentDetailProduct != null && codes.stream()
+                    .anyMatch(c -> c.equalsIgnoreCase(currentDetailProduct.getCode()))) {
+                hideDetailPanel();
+            }
+
+            if (headerCheckBox != null)
+                headerCheckBox.setSelected(false);
+            
+            setupFilter();
+            refreshShopCodes();
+            refreshPage();
+            updateLoadedCount();
+            updateSelectedCount();
+
+            Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                    "Successfully exported and deleted " + deleted + " products to:\n" + file.getName());
+            alert.setTitle("Export and Delete Complete");
+            alert.setHeaderText("Export Successful");
+            alert.getDialogPane().getStylesheets().add(
+                    getClass().getResource("/styles/app.css").toExternalForm());
+            alert.showAndWait();
+            statusLabel.setText("Export complete: " + deleted + " products exported and deleted.");
+        }));
+
+        task.setOnFailed(e -> Platform.runLater(() -> {
+            progressBar.setVisible(false);
+            progressLabel.setVisible(false);
+            progressBar.progressProperty().unbind();
+            progressLabel.textProperty().unbind();
+            showError("Export Failed", task.getException() != null
+                    ? task.getException().getMessage()
+                    : "Unknown error");
+            statusLabel.setText("Export failed.");
+        }));
+
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void handleExportByShop() {
+        List<Product> selected = allProducts.stream()
+                .filter(Product::isSelected)
+                .collect(Collectors.toList());
+
+        if (selected.isEmpty()) {
+            showError("No Selection", "Please select at least one product to export.");
+            return;
+        }
+
+        String shopId = shopCombo.getValue();
+        if (shopId != null) shopId = shopId.trim();
+
+        Stage stage = (Stage) view.getScene().getWindow();
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Save Export File");
+        fc.setInitialFileName("products_export_shop.xlsx");
+        fc.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Excel Files", "*.xlsx"));
+        File file = fc.showSaveDialog(stage);
+        if (file == null)
+            return;
+
+        progressBar.setVisible(true);
+        progressLabel.setVisible(true);
+        progressBar.setProgress(0);
+
+        ExcelExportService exportService = new ExcelExportService();
+        Task<Void> task = exportService.createExportByShopTask(selected, shopId, file, imageService);
+
+        progressBar.progressProperty().bind(task.progressProperty());
+        progressLabel.textProperty().bind(task.messageProperty());
+
+        task.setOnSucceeded(e -> Platform.runLater(() -> {
+            progressBar.setVisible(false);
+            progressLabel.setVisible(false);
+            progressBar.progressProperty().unbind();
+            progressLabel.textProperty().unbind();
+
+            // Delete exported products
+            List<String> codes = selected.stream()
+                    .map(Product::getCode)
+                    .collect(Collectors.toList());
+
+            int deleted = productDAO.deleteByCodes(codes);
+            allProducts.removeAll(selected);
+
             if (currentDetailProduct != null && codes.stream()
                     .anyMatch(c -> c.equalsIgnoreCase(currentDetailProduct.getCode()))) {
                 hideDetailPanel();

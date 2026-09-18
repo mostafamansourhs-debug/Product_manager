@@ -398,7 +398,7 @@ public class CatalogController {
         TableColumn<Product, String> nameCol = createTextColumn("Product Name", "name", 200);
         TableColumn<Product, String> madeInCol = createTextColumn("Made In", "madeIn", 100);
         TableColumn<Product, String> codeCol = createTextColumn("Code", "code", 100);
-        TableColumn<Product, String> skuCol = createTextColumn("SKU", "sku", 200);
+        // TableColumn<Product, String> skuCol = createTextColumn("SKU", "sku", 200);
         TableColumn<Product, String> descCol = createTextColumn("Description", "description", 250);
 
         // Shops summary column with clickable codes
@@ -448,7 +448,7 @@ public class CatalogController {
             }
         });
 
-        table.getColumns().addAll(checkCol, imageCol, nameCol, madeInCol, codeCol, skuCol, descCol, shopsCol);
+        table.getColumns().addAll(checkCol, imageCol, nameCol, madeInCol, codeCol, descCol, shopsCol);
 
         // Selection listener — show detail panel
         table.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
@@ -469,7 +469,7 @@ public class CatalogController {
             case "name" -> col.setCellValueFactory(data -> data.getValue().nameProperty());
             case "madeIn" -> col.setCellValueFactory(data -> data.getValue().madeInProperty());
             case "code" -> col.setCellValueFactory(data -> data.getValue().codeProperty());
-            case "sku" -> col.setCellValueFactory(data -> data.getValue().skuProperty());
+            // case "sku" -> col.setCellValueFactory(data -> data.getValue().skuProperty());
             case "description" -> col.setCellValueFactory(data -> data.getValue().descriptionProperty());
         }
         col.setCellFactory(c -> new TableCell<>() {
@@ -1026,6 +1026,7 @@ public class CatalogController {
 
             if (headerCheckBox != null)
                 headerCheckBox.setSelected(false);
+            closeEmptyFileTabs();
             setupFilter();
             refreshShopCodes();
             refreshPage();
@@ -1088,6 +1089,7 @@ public class CatalogController {
             if (headerCheckBox != null)
                 headerCheckBox.setSelected(false);
             
+            closeEmptyFileTabs();
             setupFilter();
             refreshShopCodes();
             refreshPage();
@@ -1159,36 +1161,25 @@ public class CatalogController {
             progressBar.progressProperty().unbind();
             progressLabel.textProperty().unbind();
 
-            // Delete exported products
-            List<String> codes = selected.stream()
-                    .map(Product::getCode)
-                    .collect(Collectors.toList());
-
-            int deleted = productDAO.deleteByCodes(codes);
-            allProducts.removeAll(selected);
-
-            if (currentDetailProduct != null && codes.stream()
-                    .anyMatch(c -> c.equalsIgnoreCase(currentDetailProduct.getCode()))) {
-                hideDetailPanel();
+            // Unselect exported products (do NOT delete them)
+            for (Product p : selected) {
+                p.setSelected(false);
             }
 
             if (headerCheckBox != null)
                 headerCheckBox.setSelected(false);
-            
-            setupFilter();
-            refreshShopCodes();
-            refreshPage();
-            updateLoadedCount();
+
+            tableView.refresh();
             updateSelectedCount();
 
             Alert alert = new Alert(Alert.AlertType.INFORMATION,
-                    "Successfully exported and deleted " + deleted + " products to:\n" + file.getName());
-            alert.setTitle("Export and Delete Complete");
+                    "Successfully exported " + selected.size() + " products to:\n" + file.getName());
+            alert.setTitle("Export Complete");
             alert.setHeaderText("Export Successful");
             alert.getDialogPane().getStylesheets().add(
                     getClass().getResource("/styles/app.css").toExternalForm());
             alert.showAndWait();
-            statusLabel.setText("Export complete: " + deleted + " products exported and deleted.");
+            statusLabel.setText("Export complete: " + selected.size() + " products exported.");
         }));
 
         task.setOnFailed(e -> Platform.runLater(() -> {
@@ -1324,6 +1315,32 @@ public class CatalogController {
         allShopCodes.setAll(codes);
         if (current != null && codes.contains(current)) {
             shopCombo.setValue(current);
+        }
+    }
+
+    /**
+     * Closes any open file tabs whose source file no longer has products in allProducts.
+     * Should be called after products are removed (delete or export-and-delete).
+     */
+    private void closeEmptyFileTabs() {
+        List<String> toClose = new ArrayList<>();
+        for (Map.Entry<String, Tab> entry : openFileTabs.entrySet()) {
+            String filename = entry.getKey();
+            boolean hasProducts = allProducts.stream().anyMatch(p -> {
+                String sf = p.getSourceFile();
+                if (sf == null) return false;
+                String base = sf.contains(" [") ? sf.substring(0, sf.indexOf(" [")) : sf;
+                return base.equalsIgnoreCase(filename);
+            });
+            if (!hasProducts) {
+                toClose.add(filename);
+            }
+        }
+        for (String filename : toClose) {
+            Tab tab = openFileTabs.remove(filename);
+            if (tab != null) {
+                tabPane.getTabs().remove(tab);
+            }
         }
     }
 

@@ -193,7 +193,13 @@ public class ExcelExportService {
 
                     java.util.Map<String, List<Product>> grouped = products.stream()
                             .collect(java.util.stream.Collectors.groupingBy(
-                                    pr -> pr.getSourceFile() != null ? pr.getSourceFile() : "Unknown File"
+                                    pr -> {
+                                        String sf = pr.getSourceFile();
+                                        if (sf == null) return "Unknown File";
+                                        // Use only the base name (strip " [SheetName]" suffix)
+                                        int bracket = sf.indexOf(" [");
+                                        return bracket >= 0 ? sf.substring(0, bracket) : sf;
+                                    }
                             ));
 
                     List<String> sortedFiles = new java.util.ArrayList<>(grouped.keySet());

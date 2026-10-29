@@ -126,9 +126,32 @@ public class ProductDAO {
     }
 
     /**
+     * Renames the source_file for all products whose source_file starts with
+     * {@code oldBaseName}. Handles sheet-suffixed names like "file [Sheet1]".
+     * Returns the number of rows updated.
+     */
+    public int updateSourceFile(String oldBaseName, String newBaseName) {
+        // Replace only the base-name prefix, preserving any " [SheetName]" suffix
+        String sql = "UPDATE products SET source_file = ? || SUBSTR(source_file, LENGTH(?) + 1)"
+                   + " WHERE source_file = ? OR source_file LIKE ?";
+        int updated = 0;
+        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+            ps.setString(1, newBaseName);
+            ps.setString(2, oldBaseName);
+            ps.setString(3, oldBaseName);
+            ps.setString(4, oldBaseName + " [%");
+            updated = ps.executeUpdate();
+        } catch (SQLException e) {
+            LOG.log(Level.WARNING, "Error renaming source_file from '" + oldBaseName + "' to '" + newBaseName + "'", e);
+        }
+        return updated;
+    }
+
+    /**
      * Loads all products from the database.
      */
     public List<Product> findAll() {
+
         List<Product> products = new ArrayList<>();
         String sql = "SELECT * FROM products ORDER BY code";
         try (Statement stmt = dbManager.getConnection().createStatement();

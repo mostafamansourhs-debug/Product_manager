@@ -165,25 +165,118 @@ public class CatalogController {
 
     /**
      * Opens or focuses a file tab for the given base filename.
+     * The tab header supports double-click to rename inline.
      * Call on the JavaFX thread.
      */
     private void openOrFocusFileTab(String filename) {
+        // 1. Fast lookup — tab was opened with this exact name (or already renamed to it)
         if (openFileTabs.containsKey(filename)) {
             tabPane.getSelectionModel().select(openFileTabs.get(filename));
             return;
         }
-        Tab tab = new Tab(filename);
+        // 2. Slow scan — the tab's products came from this filename but the tab was renamed;
+        //    find it by matching any tab whose userData starts with this filename.
+        for (Tab existing : tabPane.getTabs()) {
+            Object ud = existing.getUserData();
+            if (ud == null) continue; // "All Products" tab
+            String tabKey = (String) ud;
+            // Match exact OR the tab key starts with filename prefix (sheet-suffix case)
+            if (tabKey.equalsIgnoreCase(filename)
+                    || tabKey.toLowerCase().startsWith(filename.toLowerCase() + " [")) {
+                tabPane.getSelectionModel().select(existing);
+                return;
+            }
+        }
+        // 3. No existing tab — create a new one
+        Tab tab = new Tab();
         tab.setClosable(true);
         tab.setUserData(filename);
-        tab.setOnClosed(e -> {
-            openFileTabs.remove(filename);
-            // If we just closed the active tab, activeSourceFile is now stale —
-            // JavaFX auto-selects another tab which triggers the listener above.
+
+        // ── Inline-rename header graphic ──────────────────────────────────
+        Label nameLabel = new Label(filename);
+        nameLabel.setStyle("-fx-text-fill: inherit;");
+
+        TextField nameField = new TextField(filename);
+        nameField.setPrefWidth(150);
+        nameField.setStyle(
+                "-fx-background-color: transparent;"
+                + " -fx-border-color: #3b82f6;"
+                + " -fx-border-width: 0 0 2 0;"
+                + " -fx-padding: 0 2;");
+
+        StackPane tabHeader = new StackPane(nameLabel);
+        tabHeader.setAlignment(Pos.CENTER_LEFT);
+        tab.setGraphic(tabHeader);
+
+        // Double-click label → enter rename mode
+        nameLabel.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2) {
+                nameField.setText(nameLabel.getText());
+                nameField.setPrefWidth(Math.max(80, nameLabel.getWidth() + 20));
+                tabHeader.getChildren().setAll(nameField);
+                nameField.requestFocus();
+                nameField.selectAll();
+                e.consume();
+            }
         });
+
+        Runnable commitRename = () -> {
+            String newName = nameField.getText().trim();
+            if (newName.isEmpty()) newName = nameLabel.getText();
+            String oldKey = (String) tab.getUserData();
+            if (!newName.equals(oldKey)) {
+                final String finalNewName = newName;
+                final String finalOldKey  = oldKey;
+
+                // 1. Persist to DB (bulk rename source_file column)
+                productDAO.updateSourceFile(finalOldKey, finalNewName);
+
+                // 2. Update in-memory product objects
+                if (allProducts != null) {
+                    for (Product p : allProducts) {
+                        String sf = p.getSourceFile();
+                        if (sf == null) continue;
+                        String base = sf.contains(" [") ? sf.substring(0, sf.indexOf(" [")) : sf;
+                        if (base.equalsIgnoreCase(finalOldKey)) {
+                            String suffix = sf.contains(" [") ? sf.substring(sf.indexOf(" [")) : "";
+                            p.setSourceFile(finalNewName + suffix);
+                        }
+                    }
+                }
+
+                // 3. Keep the tab map and userData in sync
+                openFileTabs.remove(finalOldKey);
+                openFileTabs.put(finalNewName, tab);
+                tab.setUserData(finalNewName);
+
+                // 4. If this is the active tab, update activeSourceFile and re-filter
+                if (finalOldKey.equals(activeSourceFile)) {
+                    activeSourceFile = finalNewName;
+                    applyFilter();
+                }
+            }
+            nameLabel.setText(newName);
+            tabHeader.getChildren().setAll(nameLabel);
+        };
+
+
+        nameField.setOnAction(e -> commitRename.run());
+        nameField.focusedProperty().addListener((obs, was, isFocused) -> {
+            if (!isFocused && tabHeader.getChildren().contains(nameField))
+                commitRename.run();
+        });
+        nameField.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                tabHeader.getChildren().setAll(nameLabel); // revert
+            }
+        });
+
+        tab.setOnClosed(e -> openFileTabs.remove(tab.getUserData()));
         openFileTabs.put(filename, tab);
         tabPane.getTabs().add(tab);
         tabPane.getSelectionModel().select(tab);
     }
+
 
     private Node buildToolbar() {
         HBox toolbar = new HBox(10);

@@ -168,8 +168,8 @@
 
 .product-table .column-header {
     -fx-background-color: #F5F5F5;
-    -fx-border-color: #E0E0E0;
-    -fx-border-width: 0 0 2 0;
+    -fx-border-color: #E0E0E0 #D0D0D0 #2979FF transparent;
+    -fx-border-width: 0 1 2 0;
     -fx-padding: 8 4 8 4;
 }
 
@@ -179,6 +179,21 @@
     -fx-font-size: 12px;
     -fx-text-overrun: clip;
 }
+
+/* Resize drag handle — wide enough to grab, shows resize cursor */
+.product-table .column-header .arrow-button,
+.product-table .column-resize-line {
+    -fx-background-color: #1E88E5;
+    -fx-pref-width: 2px;
+    -fx-cursor: e-resize;
+}
+
+.product-table .filler {
+    -fx-background-color: #F5F5F5;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 0 2 0;
+}
+
 
 .product-table .table-row-cell {
     -fx-border-color: transparent transparent #F0F0F0 transparent;
@@ -209,7 +224,43 @@
     -fx-text-fill: #333;
     -fx-padding: 4 8 4 8;
     -fx-alignment: CENTER;
+    -fx-border-color: transparent #D5D5D5 transparent transparent;
+    -fx-border-width: 0 1 0 0;
 }
+
+/* TextArea inside editable cells — strip all chrome so only text shows */
+.cell-text-area {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.cell-text-area > .scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.cell-text-area > .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* This is the key node — Modena gives it ~4px top/bottom padding by default */
+.cell-text-area .content {
+    -fx-background-color: transparent;
+    -fx-padding: 0 8 0 8;   /* horizontal padding only — no vertical gap */
+}
+
+.cell-text-area > .scroll-pane > .scroll-bar:vertical,
+.cell-text-area > .scroll-pane > .scroll-bar:horizontal,
+.cell-text-area > .scroll-pane > .corner {
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-opacity: 0;
+    -fx-padding: 0;
+}
+
+
 
 .product-table .placeholder .label {
     -fx-text-fill: #999;

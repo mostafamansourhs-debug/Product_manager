@@ -313,7 +313,7 @@ public class CatalogController {
         table.setEditable(false);
         table.setPlaceholder(new Label("No products loaded. Click 'Import Data' to begin."));
         table.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
-        table.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_NEXT_COLUMN);
 
         // Checkbox column
         TableColumn<Product, Boolean> checkCol = new TableColumn<>();
@@ -400,6 +400,7 @@ public class CatalogController {
         // Shops summary column with clickable codes
         TableColumn<Product, Product> shopsCol = new TableColumn<>("Shops");
         shopsCol.setPrefWidth(200);
+        shopsCol.setMinWidth(computeHeaderMinWidth("Shops"));
         shopsCol.setSortable(false);
         shopsCol.setCellValueFactory(data -> new ReadOnlyObjectWrapper<>(data.getValue()));
         shopsCol.setCellFactory(col -> new TableCell<>() {
@@ -451,9 +452,23 @@ public class CatalogController {
         return table;
     }
 
+    /**
+     * Measures the pixel width needed to display {@code title} in the column-header font
+     * (bold 12 px, matching the CSS rule on .product-table .column-header .label),
+     * then adds horizontal padding so the text always fits on one line.
+     */
+    private double computeHeaderMinWidth(String title) {
+        javafx.scene.text.Text probe = new javafx.scene.text.Text(title);
+        probe.setFont(javafx.scene.text.Font.font(
+                "Segoe UI", javafx.scene.text.FontWeight.BOLD, 12));
+        // 8px left + 8px right column-header padding + 8px for sort-arrow / border
+        return Math.ceil(probe.getLayoutBounds().getWidth()) + 24;
+    }
+
     private TableColumn<Product, String> createTextColumn(String title, String property, double width) {
         TableColumn<Product, String> col = new TableColumn<>(title);
         col.setPrefWidth(width);
+        col.setMinWidth(computeHeaderMinWidth(title));
         switch (property) {
             case "name" -> col.setCellValueFactory(data -> data.getValue().nameProperty());
             case "madeIn" -> col.setCellValueFactory(data -> data.getValue().madeInProperty());
@@ -466,25 +481,29 @@ public class CatalogController {
             {
                 textField.setEditable(false);
                 textField.setMaxWidth(Double.MAX_VALUE);
-                textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 0 4;");
+                // Look like a label but allow text selection & copy
+                textField.setStyle(
+                        "-fx-background-color: transparent;"
+                        + " -fx-background-insets: 0;"
+                        + " -fx-border-color: transparent;"
+                        + " -fx-border-width: 0;"
+                        + " -fx-padding: 2 8;"
+                        + " -fx-text-fill: #333;"
+                        + " -fx-highlight-fill: #b3d4f5;"   // selection highlight color
+                );
+                textField.setAlignment(Pos.CENTER);
             }
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                setAlignment(Pos.CENTER_LEFT);
+                setAlignment(Pos.CENTER);
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
-                    setTooltip(null);
                 } else {
                     setText(null);
                     textField.setText(item);
                     setGraphic(textField);
-                    if (item.length() > 40) {
-                        setTooltip(new Tooltip(item));
-                    } else {
-                        setTooltip(null);
-                    }
                 }
             }
         });
@@ -493,73 +512,109 @@ public class CatalogController {
 
     /**
      * Creates an inline-editable column for the given property.
-     * Saves to DB automatically on focus-lost or Enter; reverts on Escape.
+     * A Label is shown at rest (correct color, centered, wraps text).
+     * Clicking the cell swaps in a TextArea for editing.
+     * Saves on focus-lost or Enter; reverts on Escape.
      */
     private TableColumn<Product, String> createEditableTextColumn(String title, String property, double width) {
         TableColumn<Product, String> col = new TableColumn<>(title);
         col.setPrefWidth(width);
+        col.setMinWidth(computeHeaderMinWidth(title));
         switch (property) {
             case "name"        -> col.setCellValueFactory(data -> data.getValue().nameProperty());
             case "madeIn"      -> col.setCellValueFactory(data -> data.getValue().madeInProperty());
             case "description" -> col.setCellValueFactory(data -> data.getValue().descriptionProperty());
         }
         col.setCellFactory(c -> new TableCell<>() {
-            private final TextField textField = new TextField();
+            private final Label     displayLabel = new Label();
+            private final TextField editField    = new TextField();
             private String lastSaved = "";
+            private boolean isEditing = false;
+
+            private static final String FIELD_IDLE =
+                    "-fx-background-color: transparent;"
+                    + " -fx-background-insets: 0;"
+                    + " -fx-padding: 2 8;"
+                    + " -fx-text-fill: #333;"
+                    + " -fx-border-color: transparent;"
+                    + " -fx-border-width: 0;";
+            private static final String FIELD_FOCUSED =
+                    "-fx-background-color: transparent;"
+                    + " -fx-background-insets: 0;"
+                    + " -fx-padding: 2 8;"
+                    + " -fx-text-fill: #333;"
+                    + " -fx-border-color: #3b82f6;"
+                    + " -fx-border-width: 0 0 2 0;";
             {
-                textField.setMaxWidth(Double.MAX_VALUE);
-                // Style: transparent background at rest, blue underline while focused
-                textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 2 4;");
-                textField.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
-                    if (isFocused) {
-                        textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0;"
-                                + " -fx-padding: 2 4; -fx-border-color: #3b82f6; -fx-border-width: 0 0 2 0;");
-                    } else {
-                        textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 2 4;");
-                        commitEdit();
-                    }
+                // Display label — shown at rest, wraps text, centered
+                displayLabel.setWrapText(true);
+                displayLabel.setAlignment(Pos.CENTER);
+                displayLabel.setMaxWidth(Double.MAX_VALUE);
+                displayLabel.setMaxHeight(Double.MAX_VALUE);
+                displayLabel.setStyle("-fx-text-fill: #333; -fx-padding: 2 8;");
+                displayLabel.setOnMouseClicked(e -> startEditing());
+
+                // TextField for editing — fixed height, never expands the row
+                editField.setMaxWidth(Double.MAX_VALUE);
+                editField.setStyle(FIELD_IDLE);
+
+                editField.focusedProperty().addListener((obs, was, isFocused) -> {
+                    editField.setStyle(isFocused ? FIELD_FOCUSED : FIELD_IDLE);
+                    if (!isFocused && isEditing) finishEdit(true);
                 });
-                textField.setOnAction(e -> {
-                    commitEdit();
-                    textField.getParent().requestFocus(); // move focus away so border clears
-                });
-                textField.setOnKeyPressed(e -> {
+                editField.setOnAction(e -> finishEdit(true));
+                editField.setOnKeyPressed(e -> {
                     if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
-                        textField.setText(lastSaved); // revert
-                        textField.getParent().requestFocus();
+                        e.consume();
+                        finishEdit(false);
                     }
                 });
             }
 
-            private void commitEdit() {
-                Product product = getTableRow() != null ? (Product) getTableRow().getItem() : null;
-                if (product == null) return;
-                String newVal = textField.getText() != null ? textField.getText().trim() : "";
-                if (newVal.equals(lastSaved)) return; // nothing changed
-                switch (property) {
-                    case "name"        -> product.setName(newVal);
-                    case "madeIn"      -> product.setMadeIn(newVal);
-                    case "description" -> product.setDescription(newVal);
+            private void startEditing() {
+                isEditing = true;
+                editField.setText(lastSaved);
+                editField.setStyle(FIELD_FOCUSED);
+                setGraphic(editField);
+                editField.requestFocus();
+                editField.selectAll();
+            }
+
+            private void finishEdit(boolean save) {
+                isEditing = false;
+                if (save) {
+                    Product product = getTableRow() != null ? (Product) getTableRow().getItem() : null;
+                    if (product != null) {
+                        String newVal = editField.getText() != null ? editField.getText().trim() : "";
+                        if (!newVal.equals(lastSaved)) {
+                            switch (property) {
+                                case "name"        -> product.setName(newVal);
+                                case "madeIn"      -> product.setMadeIn(newVal);
+                                case "description" -> product.setDescription(newVal);
+                            }
+                            lastSaved = newVal;
+                            productDAO.update(product);
+                        }
+                    }
                 }
-                lastSaved = newVal;
-                productDAO.update(product);
-                tableView.refresh();
+                displayLabel.setText(lastSaved);
+                editField.setStyle(FIELD_IDLE);
+                setGraphic(displayLabel);
             }
 
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                setAlignment(Pos.CENTER_LEFT);
+                setAlignment(Pos.CENTER);
+                isEditing = false;
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
-                    setTooltip(null);
                 } else {
                     setText(null);
                     lastSaved = item;
-                    textField.setText(item);
-                    setGraphic(textField);
-                    setTooltip(item.length() > 40 ? new Tooltip(item) : null);
+                    displayLabel.setText(item);
+                    setGraphic(displayLabel);
                 }
             }
         });
@@ -567,6 +622,7 @@ public class CatalogController {
     }
 
     // ======================== DETAIL PANEL ========================
+
 
     private VBox buildDetailPanel() {
         VBox panel = new VBox(8);

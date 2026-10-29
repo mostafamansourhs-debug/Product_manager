@@ -8,7 +8,7 @@ import javafx.beans.property.*;
  */
 public class Product {
 
-    public static final int MAX_SHOP_CODES = 40;
+    public static final int MAX_SHOP_CODES = 15;
 
     private int id;
     private final StringProperty name;

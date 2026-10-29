@@ -125,13 +125,9 @@ public class CatalogController {
         tableView = buildTable();
         VBox.setVgrow(tableView, Priority.ALWAYS);
 
-        detailPanel = buildDetailPanel();
-        detailPanel.setVisible(false);
-        detailPanel.setManaged(false);
-
         HBox paginationBar = buildPaginationBar();
 
-        centerBox.getChildren().addAll(tabPane, tableView, detailPanel, paginationBar);
+        centerBox.getChildren().addAll(tabPane, tableView, paginationBar);
         view.setCenter(centerBox);
 
         // Bottom: Status bar with counts
@@ -317,7 +313,7 @@ public class CatalogController {
         table.setEditable(false);
         table.setPlaceholder(new Label("No products loaded. Click 'Import Data' to begin."));
         table.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
 
         // Checkbox column
         TableColumn<Product, Boolean> checkCol = new TableColumn<>();
@@ -394,12 +390,12 @@ public class CatalogController {
             }
         });
 
-        // Text columns
-        TableColumn<Product, String> nameCol = createTextColumn("Product Name", "name", 200);
-        TableColumn<Product, String> madeInCol = createTextColumn("Made In", "madeIn", 100);
-        TableColumn<Product, String> codeCol = createTextColumn("Code", "code", 100);
+        // Text columns — name / madeIn / description are inline-editable with auto-save
+        TableColumn<Product, String> nameCol   = createEditableTextColumn("Product Name", "name",        200);
+        TableColumn<Product, String> madeInCol = createEditableTextColumn("Made In",      "madeIn",      100);
+        TableColumn<Product, String> codeCol   = createTextColumn(        "Code",          "code",        100);
         // TableColumn<Product, String> skuCol = createTextColumn("SKU", "sku", 200);
-        TableColumn<Product, String> descCol = createTextColumn("Description", "description", 250);
+        TableColumn<Product, String> descCol   = createEditableTextColumn("Description",  "description", 250);
 
         // Shops summary column with clickable codes
         TableColumn<Product, Product> shopsCol = new TableColumn<>("Shops");
@@ -450,14 +446,7 @@ public class CatalogController {
 
         table.getColumns().addAll(checkCol, imageCol, nameCol, madeInCol, codeCol, descCol, shopsCol);
 
-        // Selection listener — show detail panel
-        table.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
-            if (selected != null) {
-                showDetailPanel(selected);
-            } else {
-                hideDetailPanel();
-            }
-        });
+
 
         return table;
     }
@@ -476,11 +465,13 @@ public class CatalogController {
             private final TextField textField = new TextField();
             {
                 textField.setEditable(false);
-                textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 0;");
+                textField.setMaxWidth(Double.MAX_VALUE);
+                textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 0 4;");
             }
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
+                setAlignment(Pos.CENTER_LEFT);
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
@@ -494,6 +485,81 @@ public class CatalogController {
                     } else {
                         setTooltip(null);
                     }
+                }
+            }
+        });
+        return col;
+    }
+
+    /**
+     * Creates an inline-editable column for the given property.
+     * Saves to DB automatically on focus-lost or Enter; reverts on Escape.
+     */
+    private TableColumn<Product, String> createEditableTextColumn(String title, String property, double width) {
+        TableColumn<Product, String> col = new TableColumn<>(title);
+        col.setPrefWidth(width);
+        switch (property) {
+            case "name"        -> col.setCellValueFactory(data -> data.getValue().nameProperty());
+            case "madeIn"      -> col.setCellValueFactory(data -> data.getValue().madeInProperty());
+            case "description" -> col.setCellValueFactory(data -> data.getValue().descriptionProperty());
+        }
+        col.setCellFactory(c -> new TableCell<>() {
+            private final TextField textField = new TextField();
+            private String lastSaved = "";
+            {
+                textField.setMaxWidth(Double.MAX_VALUE);
+                // Style: transparent background at rest, blue underline while focused
+                textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 2 4;");
+                textField.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+                    if (isFocused) {
+                        textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0;"
+                                + " -fx-padding: 2 4; -fx-border-color: #3b82f6; -fx-border-width: 0 0 2 0;");
+                    } else {
+                        textField.setStyle("-fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 2 4;");
+                        commitEdit();
+                    }
+                });
+                textField.setOnAction(e -> {
+                    commitEdit();
+                    textField.getParent().requestFocus(); // move focus away so border clears
+                });
+                textField.setOnKeyPressed(e -> {
+                    if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                        textField.setText(lastSaved); // revert
+                        textField.getParent().requestFocus();
+                    }
+                });
+            }
+
+            private void commitEdit() {
+                Product product = getTableRow() != null ? (Product) getTableRow().getItem() : null;
+                if (product == null) return;
+                String newVal = textField.getText() != null ? textField.getText().trim() : "";
+                if (newVal.equals(lastSaved)) return; // nothing changed
+                switch (property) {
+                    case "name"        -> product.setName(newVal);
+                    case "madeIn"      -> product.setMadeIn(newVal);
+                    case "description" -> product.setDescription(newVal);
+                }
+                lastSaved = newVal;
+                productDAO.update(product);
+                tableView.refresh();
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setAlignment(Pos.CENTER_LEFT);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    setTooltip(null);
+                } else {
+                    setText(null);
+                    lastSaved = item;
+                    textField.setText(item);
+                    setGraphic(textField);
+                    setTooltip(item.length() > 40 ? new Tooltip(item) : null);
                 }
             }
         });
@@ -622,10 +688,12 @@ public class CatalogController {
     }
 
     private void hideDetailPanel() {
-        detailPanel.setVisible(false);
-        detailPanel.setManaged(false);
+        if (detailPanel != null) {
+            detailPanel.setVisible(false);
+            detailPanel.setManaged(false);
+        }
         currentDetailProduct = null;
-        tableView.getSelectionModel().clearSelection();
+        if (tableView != null) tableView.getSelectionModel().clearSelection();
     }
 
     private void showFullImagePopup() {

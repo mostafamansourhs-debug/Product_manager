@@ -5,8 +5,11 @@ A cross-platform JavaFX desktop application for managing product catalogs import
 ## Features
 
 - **Excel Import**: Import products from multiple `.xlsx`/`.xls` files in a folder
+- **Import with Pic**: Re-import previously exported files and extract their embedded images automatically
 - **Image Matching**: Automatically match product images by code (filename = product code)
-- **Shop Code Management**: Assign up to 20 shop codes per product via inline editing
+- **Image Viewer**: Double-click any thumbnail (table or detail panel) to open a large image window
+- **Image Management**: Add, replace, or remove a product's image from its table row
+- **Shop Code Management**: Assign up to 15 shop codes per product via inline editing
 - **Shop Discovery**: Browse products by shop code with a searchable dropdown
 - **Excel Export**: Export selected products to `.xlsx` with embedded images
 - **Persistent Storage**: SQLite database stores products and shop code assignments between sessions
@@ -79,6 +82,37 @@ src/main/resources/
 - Example: product code `A1023` matches `A1023.jpg`, `a1023.PNG`, etc.
 - Supported formats: `.jpg`, `.jpeg`, `.png`, `.bmp`
 - Matching is **case-insensitive**
+
+## Import with Pic
+
+Use **Import with Pic** to re-import files produced by **Export** or **Export by Shop**:
+
+- Embedded product images are extracted from the Excel drawing layer and saved to the
+  app-data `images/` folder (`~/.productscatalog/images` on Linux).
+- Images are matched to rows, so no separate image folder is required.
+- Existing product codes are updated with the file's data and image.
+- Both layout styles are supported, including grouped "Products by File" sheets.
+- Legacy shop headers (`shop 1`, `shop 01`) and current headers (`sh-01`) are accepted;
+  only the first 15 shop columns are imported.
+- Images are ignored when the file uses a header other than `Image` for the picture column.
+
+## Image Viewer
+
+Double-click a product thumbnail in the table (or the image in the detail panel) to open a
+large, resizable image window. The **View Image** button in the detail panel does the same.
+
+## Changing a Product Image
+
+Use the small **✎** button in the bottom-right corner of a product's thumbnail:
+
+- **Choose Image…** copies the selected file (PNG, JPG, JPEG, BMP) into the app-data
+  `images/` folder, updates the product, and refreshes its thumbnail.
+- **Remove Image** clears the product's image and shows the placeholder again. It is
+  disabled for products that have no image.
+- Removing or replacing an image deletes the old copied file from the app-data folder;
+  external files are never deleted.
+
+Changes are saved to the database immediately and are reflected in future exports.
 
 ## Sample Data
 

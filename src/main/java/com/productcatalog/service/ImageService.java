@@ -1,7 +1,7 @@
 package com.productcatalog.service;
 
+import com.productcatalog.dao.DatabaseManager;
 import javafx.scene.image.Image;
-import javafx.scene.image.WritableImage;
 import javafx.embed.swing.SwingFXUtils;
 import java.awt.Color;
 import java.awt.Font;
@@ -10,10 +10,13 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
+import javax.imageio.ImageIO;
+
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -31,7 +34,7 @@ public class ImageService {
     private static final int MAX_CACHE_SIZE = 500;
 
     // code (lowercase) -> absolute file path
-    private final Map<String, String> codeToImagePath = new HashMap<>();
+    private final Map<String, String> codeToImagePath = new ConcurrentHashMap<>();
     // code (lowercase) -> cached thumbnail Image
     private final Map<String, Image> thumbnailCache = new ConcurrentHashMap<>();
 
@@ -81,8 +84,118 @@ public class ImageService {
      */
     public void registerImage(String productCode, String imagePath) {
         if (productCode != null && imagePath != null) {
-            codeToImagePath.put(productCode.toLowerCase(), imagePath);
+            String key = productCode.toLowerCase();
+            codeToImagePath.put(key, imagePath);
+            thumbnailCache.remove(key);
         }
+    }
+
+    /**
+     * Saves image bytes extracted from an Excel file into the app-data images
+     * folder and registers the resulting path for the product code.
+     *
+     * @return the absolute path of the saved image, or null if it could not be saved
+     */
+    public String saveExtractedImage(String productCode, byte[] data, String extension) {
+        if (productCode == null || data == null || data.length == 0) return null;
+
+        String ext = normalizeExtension(extension);
+        if (ext == null) {
+            LOG.warning("Unsupported embedded image extension '" + extension
+                    + "' for product code: " + productCode);
+            return null;
+        }
+
+        String safeCode = productCode.trim().replaceAll("[^a-zA-Z0-9\\-_]", "_");
+        if (safeCode.isEmpty()) {
+            safeCode = "image_" + System.currentTimeMillis();
+        }
+
+        try {
+            Path dir = Path.of(DatabaseManager.getAppDataDir(), "images");
+            Files.createDirectories(dir);
+            Path target = dir.resolve(safeCode + "." + ext);
+            Files.write(target, data, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            String path = target.toAbsolutePath().toString();
+            registerImage(productCode, path);
+            return path;
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "Failed to save extracted image for: " + productCode, e);
+            return null;
+        }
+    }
+
+    /**
+     * Copies a user-selected image file into the app-data images folder and
+     * registers it for the product code.
+     *
+     * @return the absolute path of the saved image, or null if it is invalid/unsupported
+     */
+    public String importImageFile(String productCode, File sourceFile) {
+        if (productCode == null || sourceFile == null || !sourceFile.isFile()) return null;
+
+        String ext = normalizeExtension(extensionOf(sourceFile.getName()));
+        if (ext == null) return null;
+
+        try {
+            byte[] data = Files.readAllBytes(sourceFile.toPath());
+            if (data.length == 0) return null;
+
+            // Reject files whose bytes do not decode as an image.
+            if (ImageIO.read(new ByteArrayInputStream(data)) == null) return null;
+
+            return saveExtractedImage(productCode, data, ext);
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "Failed to import image for: " + productCode, e);
+            return null;
+        }
+    }
+
+    /**
+     * Unlinks the image from a product code, clears its cached thumbnail, and
+     * deletes the stored file when it lives in the app-data images folder.
+     */
+    public void removeImage(String productCode) {
+        if (productCode == null) return;
+        String key = productCode.toLowerCase();
+        String path = codeToImagePath.remove(key);
+        thumbnailCache.remove(key);
+        deleteManagedFile(path);
+    }
+
+    /**
+     * Deletes an image file only when it is managed by this app (inside the
+     * app-data images folder). External user files are left untouched.
+     */
+    public void deleteManagedImage(String imagePath) {
+        deleteManagedFile(imagePath);
+    }
+
+    private void deleteManagedFile(String imagePath) {
+        if (imagePath == null) return;
+        try {
+            Path imagesDir = Path.of(DatabaseManager.getAppDataDir(), "images")
+                    .toAbsolutePath().normalize();
+            Path file = Path.of(imagePath).toAbsolutePath().normalize();
+            if (file.startsWith(imagesDir)) {
+                Files.deleteIfExists(file);
+            }
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "Could not delete managed image: " + imagePath, e);
+        }
+    }
+
+    private String extensionOf(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        return dot > 0 ? fileName.substring(dot + 1) : null;
+    }
+
+    private String normalizeExtension(String extension) {
+        if (extension == null) return null;
+        String ext = extension.trim().toLowerCase();
+        if (ext.startsWith(".")) ext = ext.substring(1);
+        if (ext.equals("jpeg")) ext = "jpg";
+        return SUPPORTED_EXTENSIONS.contains("." + ext) ? ext : null;
     }
 
     /**

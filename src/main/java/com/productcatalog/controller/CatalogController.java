@@ -16,8 +16,10 @@ import javafx.collections.transformation.FilteredList;
 import javafx.collections.transformation.SortedList;
 import javafx.concurrent.Task;
 import javafx.geometry.*;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.input.MouseButton;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
@@ -286,8 +288,13 @@ public class CatalogController {
 
         Button importButton = new Button("\uD83D\uDCC2 Import");
         importButton.getStyleClass().add("btn-primary");
-        importButton.setOnAction(e -> handleImport());
+        importButton.setOnAction(e -> handleImport(false));
         importButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
+
+        Button importWithPicButton = new Button("\uD83D\uDDBC Import with Pic");
+        importWithPicButton.getStyleClass().add("btn-primary");
+        importWithPicButton.setOnAction(e -> handleImport(true));
+        importWithPicButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
         exportButton = new Button("\uD83D\uDCE4 Export");
         exportButton.getStyleClass().add("btn-primary");
@@ -387,7 +394,8 @@ public class CatalogController {
             return selectedCount.get() <= 0 || shopCombo.getValue() == null || shopCombo.getValue().trim().isEmpty();
         }, selectedCount, shopCombo.valueProperty()));
 
-        toolbar.getChildren().addAll(importButton, exportButton, exportByShopButton, exportWithNameButton,
+        toolbar.getChildren().addAll(importButton, importWithPicButton, exportButton, exportByShopButton,
+                exportWithNameButton,
                 unselectButton, deleteButton, sep,
                 searchFieldCombo, searchField, clearSearch, sep2, shopLabel, shopCombo, clearShop, sep3, sortLabel,
                 sortFieldCombo, sortOrderCombo, progressBar, progressLabel);
@@ -468,11 +476,33 @@ public class CatalogController {
         imageCol.setCellValueFactory(data -> data.getValue().codeProperty());
         imageCol.setCellFactory(col -> new TableCell<>() {
             private final ImageView iv = new ImageView();
+            private final Button editBtn = new Button();
+            private final StackPane imageBox = new StackPane(iv, editBtn);
             {
                 iv.setFitWidth(104);
                 iv.setFitHeight(104);
                 iv.setPreserveRatio(true);
                 iv.setSmooth(true);
+                iv.setPickOnBounds(true);
+
+                editBtn.getStyleClass().add("image-edit-btn");
+                editBtn.setFocusTraversable(false);
+                editBtn.setOnAction(e -> {
+                    Product product = getTableRow() != null ? getTableRow().getItem() : null;
+                    if (product != null) handleChangeImage(product);
+                });
+                editBtn.setOnMouseClicked(e -> e.consume());
+                StackPane.setAlignment(editBtn, Pos.BOTTOM_RIGHT);
+                StackPane.setMargin(editBtn, new Insets(2));
+
+                setCursor(Cursor.HAND);
+                setOnMouseClicked(e -> {
+                    if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2) {
+                        Product product = getTableRow() != null ? getTableRow().getItem() : null;
+                        if (product != null) showFullImagePopup(product);
+                        e.consume();
+                    }
+                });
             }
 
             @Override
@@ -481,8 +511,13 @@ public class CatalogController {
                 if (empty || code == null || code.isEmpty()) {
                     setGraphic(null);
                 } else {
+                    boolean hasImage = imageService.hasImage(code);
                     iv.setImage(imageService.getThumbnail(code));
-                    setGraphic(iv);
+                    editBtn.setText("✎");
+                    editBtn.setTooltip(new Tooltip(hasImage
+                            ? "Change image for " + code
+                            : "Add image for " + code));
+                    setGraphic(imageBox);
                     setAlignment(Pos.CENTER);
                     setStyle("-fx-padding: 0;"); // Remove padding to allow image to be as big as the cell
                 }
@@ -750,6 +785,12 @@ public class CatalogController {
         detailImage.setFitHeight(125);
         detailImage.setPreserveRatio(true);
         detailImage.setSmooth(true);
+        detailImage.setCursor(Cursor.HAND);
+        detailImage.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2) {
+                showFullImagePopup(currentDetailProduct);
+            }
+        });
 
         viewImageBtn = new Button("🔍 View Image");
         viewImageBtn.getStyleClass().add("btn-small");
@@ -852,17 +893,29 @@ public class CatalogController {
     }
 
     private void showFullImagePopup() {
-        if (currentDetailProduct == null)
+        showFullImagePopup(currentDetailProduct);
+    }
+
+    /**
+     * Opens a large, resizable image window. Triggered by the View Image button
+     * or by double-clicking a thumbnail (table cell or detail panel).
+     */
+    private void showFullImagePopup(Product product) {
+        if (product == null)
             return;
 
-        String code = currentDetailProduct.getCode();
+        String code = product.getCode();
         if (!imageService.hasImage(code))
             return;
 
-        Stage popup = new Stage();
-        popup.setTitle("Image - " + currentDetailProduct.getName());
+        javafx.geometry.Rectangle2D bounds = javafx.stage.Screen.getPrimary().getVisualBounds();
+        double maxWidth = Math.max(400, bounds.getWidth() * 0.85);
+        double maxHeight = Math.max(300, bounds.getHeight() * 0.85);
 
-        ImageView iv = new ImageView(imageService.getFullImage(code, 800, 600));
+        Stage popup = new Stage();
+        popup.setTitle("Image - " + product.getName() + " (" + code + ")");
+
+        ImageView iv = new ImageView(imageService.getFullImage(code, maxWidth, maxHeight));
         iv.setPreserveRatio(true);
         iv.setSmooth(true);
 
@@ -872,6 +925,7 @@ public class CatalogController {
 
         Scene scene = new Scene(root);
         popup.setScene(scene);
+        popup.sizeToScene();
         popup.show();
     }
 
@@ -1032,6 +1086,10 @@ public class CatalogController {
     // ======================== IMPORT ========================
 
     private void handleImport() {
+        handleImport(false);
+    }
+
+    private void handleImport(boolean importImages) {
         Stage stage = (Stage) view.getScene().getWindow();
 
         // Step 1: Choose Excel folder or Files
@@ -1073,27 +1131,29 @@ public class CatalogController {
             return;
         }
 
-        // Step 2: Choose Image folder (optional)
-        Alert imgAlert = new Alert(Alert.AlertType.CONFIRMATION,
-                "Would you like to select an images folder?\n\n" +
-                        "Images should be named by product code (e.g. A1023.jpg).",
-                ButtonType.YES, ButtonType.NO);
-        imgAlert.setTitle("Images Folder");
-        imgAlert.setHeaderText("Select Images Folder?");
-        imgAlert.getDialogPane().getStylesheets().add(
-                getClass().getResource("/styles/app.css").toExternalForm());
-        Optional<ButtonType> imgResult = imgAlert.showAndWait();
+        // Step 2: Choose Image folder (optional) — skipped for embedded-image imports
+        if (!importImages) {
+            Alert imgAlert = new Alert(Alert.AlertType.CONFIRMATION,
+                    "Would you like to select an images folder?\n\n" +
+                            "Images should be named by product code (e.g. A1023.jpg).",
+                    ButtonType.YES, ButtonType.NO);
+            imgAlert.setTitle("Images Folder");
+            imgAlert.setHeaderText("Select Images Folder?");
+            imgAlert.getDialogPane().getStylesheets().add(
+                    getClass().getResource("/styles/app.css").toExternalForm());
+            Optional<ButtonType> imgResult = imgAlert.showAndWait();
 
-        File imageFolder = null;
-        if (imgResult.isPresent() && imgResult.get() == ButtonType.YES) {
-            DirectoryChooser idc = new DirectoryChooser();
-            idc.setTitle("Select Images Folder");
-            imageFolder = idc.showDialog(stage);
-        }
+            File imageFolder = null;
+            if (imgResult.isPresent() && imgResult.get() == ButtonType.YES) {
+                DirectoryChooser idc = new DirectoryChooser();
+                idc.setTitle("Select Images Folder");
+                imageFolder = idc.showDialog(stage);
+            }
 
-        // Scan images
-        if (imageFolder != null) {
-            imageService.scanFolder(imageFolder);
+            // Scan images
+            if (imageFolder != null) {
+                imageService.scanFolder(imageFolder);
+            }
         }
 
         // Show progress
@@ -1104,7 +1164,7 @@ public class CatalogController {
         // Run import in background
         ExcelImportService importService = new ExcelImportService();
         Task<ExcelImportService.ImportResult> task = importService.createImportTask(selectedExcelFiles, imageService,
-                productDAO);
+                productDAO, importImages);
 
         progressBar.progressProperty().bind(task.progressProperty());
         progressLabel.textProperty().bind(task.messageProperty());
@@ -1145,8 +1205,14 @@ public class CatalogController {
 
                 // Show summary
                 showImportSummary(result);
-                statusLabel.setText(result.products.size() + " new products added from "
-                        + result.totalFiles + " file(s).");
+                if (importImages) {
+                    statusLabel.setText(result.products.size() + " products imported, "
+                            + result.extractedImages + " images extracted from "
+                            + result.totalFiles + " file(s).");
+                } else {
+                    statusLabel.setText(result.products.size() + " new products added from "
+                            + result.totalFiles + " file(s).");
+                }
             });
         });
 
@@ -1172,6 +1238,10 @@ public class CatalogController {
         sb.append("📁 Files processed: ").append(result.totalFiles).append("\n");
         if (result.skipped > 0)
             sb.append("⏭ Files skipped (already in DB): ").append(result.skipped).append("\n");
+        if (result.imageMode) {
+            sb.append("🖼 Images extracted from files: ").append(result.extractedImages).append("\n");
+            sb.append("🖼 Rows without embedded image: ").append(result.missingEmbeddedImages).append("\n");
+        }
         sb.append("🖼 Products missing images: ").append(result.missingImages).append("\n");
         if (result.duplicates > 0)
             sb.append("⚠ Duplicate codes skipped: ").append(result.duplicates).append("\n");
@@ -1196,6 +1266,73 @@ public class CatalogController {
         alert.getDialogPane().getStylesheets().add(
                 getClass().getResource("/styles/app.css").toExternalForm());
         alert.showAndWait();
+    }
+
+    // ======================== IMAGE MANAGEMENT ========================
+
+    /**
+     * Prompts to add/replace or remove the image for a single product.
+     * The chosen file is copied into the app-data images folder.
+     */
+    private void handleChangeImage(Product product) {
+        if (product == null) return;
+
+        String code = product.getCode();
+        boolean hasImage = imageService.hasImage(code);
+
+        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        dialog.setTitle(hasImage ? "Change Image" : "Add Image");
+        dialog.setHeaderText((hasImage ? "Change image for " : "Add image for ")
+                + product.getName() + " (" + code + ")");
+        dialog.setContentText(hasImage
+                ? "Choose a new image from this device, or remove the current image."
+                : "Choose an image from this device.");
+
+        ButtonType chooseBtn = new ButtonType("Choose Image…", ButtonBar.ButtonData.OK_DONE);
+        ButtonType removeBtn = new ButtonType("Remove Image", ButtonBar.ButtonData.OTHER);
+        dialog.getButtonTypes().setAll(chooseBtn, removeBtn, ButtonType.CANCEL);
+
+        Node removeNode = dialog.getDialogPane().lookupButton(removeBtn);
+        if (removeNode != null) removeNode.setDisable(!hasImage);
+
+        dialog.getDialogPane().getStylesheets().add(
+                getClass().getResource("/styles/app.css").toExternalForm());
+
+        Optional<ButtonType> choice = dialog.showAndWait();
+        if (choice.isEmpty() || choice.get() == ButtonType.CANCEL) return;
+
+        if (choice.get() == removeBtn) {
+            product.setImagePath(null);
+            productDAO.update(product);
+            imageService.removeImage(code);
+            tableView.refresh();
+            statusLabel.setText("Image removed for " + code + ".");
+            return;
+        }
+
+        FileChooser fc = new FileChooser();
+        fc.setTitle(hasImage ? "Choose Replacement Image" : "Choose Image");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                "Image Files", "*.png", "*.jpg", "*.jpeg", "*.bmp"));
+        File chosen = fc.showOpenDialog((Stage) view.getScene().getWindow());
+        if (chosen == null) return;
+
+        String oldPath = imageService.getImagePath(code);
+        String newPath = imageService.importImageFile(code, chosen);
+        if (newPath == null) {
+            showError("Invalid Image",
+                    "The selected file could not be read as a supported image.\n"
+                            + "Supported formats: PNG, JPG, JPEG, BMP.");
+            return;
+        }
+
+        product.setImagePath(newPath);
+        productDAO.update(product);
+        if (oldPath != null && !oldPath.equals(newPath)) {
+            imageService.deleteManagedImage(oldPath);
+        }
+        tableView.refresh();
+        statusLabel.setText("Image " + (hasImage ? "updated" : "added") + " for " + code + ".");
     }
 
     // ======================== EXPORT ========================

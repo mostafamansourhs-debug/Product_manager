@@ -3,12 +3,20 @@ package com.productcatalog.service;
 import com.productcatalog.model.Product;
 import javafx.concurrent.Task;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
+import org.apache.poi.xssf.usermodel.XSSFDrawing;
+import org.apache.poi.xssf.usermodel.XSSFPicture;
+import org.apache.poi.xssf.usermodel.XSSFPictureData;
+import org.apache.poi.xssf.usermodel.XSSFShape;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Background service that imports products from all Excel files in a folder.
@@ -24,6 +32,11 @@ public class ExcelImportService {
     private static final String COL_CODE = "code";
     private static final String COL_DESCRIPTION = "description";
     private static final String COL_SKU = "sku";
+    private static final String COL_IMAGE = "image";
+
+    // Matches shop headers such as "shop 1", "shop 01", "sh-01", "sh 1"
+    private static final Pattern SHOP_HEADER_PATTERN =
+            Pattern.compile("^(?:sh|shop)[\\s-]*(\\d+)$");
 
     /**
      * Result of an import operation.
@@ -37,6 +50,9 @@ public class ExcelImportService {
         public int duplicates;
         public int missingImages;
         public int skipped;
+        public int extractedImages;
+        public int missingEmbeddedImages;
+        public boolean imageMode;
 
         public ImportResult() {
             this.products = new ArrayList<>();
@@ -52,10 +68,26 @@ public class ExcelImportService {
      */
     public Task<ImportResult> createImportTask(List<File> excelFiles, ImageService imageService,
                                                com.productcatalog.dao.ProductDAO productDAO) {
+        return createImportTask(excelFiles, imageService, productDAO, false);
+    }
+
+    /**
+     * Creates a JavaFX Task for background import.
+     *
+     * @param importImages when true, embedded images are extracted from each
+     *                     exported sheet, saved to the app-data folder, and
+     *                     linked to the matching product code. Files whose data
+     *                     already exists in the DB are still processed so that
+     *                     existing products can be refreshed.
+     */
+    public Task<ImportResult> createImportTask(List<File> excelFiles, ImageService imageService,
+                                               com.productcatalog.dao.ProductDAO productDAO,
+                                               boolean importImages) {
         return new Task<>() {
             @Override
             protected ImportResult call() throws Exception {
                 ImportResult result = new ImportResult();
+                result.imageMode = importImages;
                 Set<String> seenCodes = new HashSet<>();
 
                 if (excelFiles == null || excelFiles.isEmpty()) {
@@ -69,8 +101,10 @@ public class ExcelImportService {
                 for (File file : excelFiles) {
                     if (isCancelled()) break;
 
-                    // Skip file if its data is already stored in the database
-                    if (productDAO != null && productDAO.existsBySourceFilename(file.getName())) {
+                    // Skip file if its data is already stored in the database.
+                    // Image imports must still run so conflicts can refresh images.
+                    if (!importImages && productDAO != null
+                            && productDAO.existsBySourceFilename(file.getName())) {
                         result.warnings.add("'" + file.getName() + "' already exists in DB — loaded from DB, not re-imported.");
                         result.skipped++;
                         processed++;
@@ -80,7 +114,7 @@ public class ExcelImportService {
                     }
 
                     try {
-                        processFile(file, result, seenCodes, imageService);
+                        processFile(file, result, seenCodes, imageService, importImages);
                     } catch (Exception e) {
                         result.errors.add("Error reading file '" + file.getName() + "': " + e.getMessage());
                         LOG.log(Level.WARNING, "Error processing file: " + file.getName(), e);
@@ -101,14 +135,19 @@ public class ExcelImportService {
                     result.missingImages = result.products.size();
                 }
 
-                updateMessage("Import complete: " + result.products.size() + " new products loaded.");
+                if (importImages) {
+                    updateMessage("Import complete: " + result.products.size() + " products loaded, "
+                            + result.extractedImages + " images extracted.");
+                } else {
+                    updateMessage("Import complete: " + result.products.size() + " new products loaded.");
+                }
                 return result;
             }
         };
     }
 
     private void processFile(File file, ImportResult result, Set<String> seenCodes,
-                             ImageService imageService) throws Exception {
+                             ImageService imageService, boolean importImages) throws Exception {
         try (FileInputStream fis = new FileInputStream(file);
              Workbook workbook = WorkbookFactory.create(fis)) {
 
@@ -128,6 +167,12 @@ public class ExcelImportService {
                 if (!colMap.containsKey(COL_CODE)) {
                     continue; // Skip sheets without a code column
                 }
+
+                warnExtraShopColumns(colMap, result, file, sheet);
+
+                Map<Integer, EmbeddedImage> rowImages = importImages
+                        ? extractEmbeddedImages(sheet, colMap.get(COL_IMAGE))
+                        : Collections.emptyMap();
 
                 DataFormatter formatter = new DataFormatter();
 
@@ -152,9 +197,20 @@ public class ExcelImportService {
                         String madeIn = getCellValue(row, colMap.get(COL_MADE_IN), formatter).trim();
                         String description = getCellValue(row, colMap.get(COL_DESCRIPTION), formatter).trim();
 
-                        // Match image
+                        // Match image: prefer an embedded picture from the sheet
                         String imagePath = null;
-                        if (imageService != null) {
+                        if (importImages && imageService != null) {
+                            EmbeddedImage embedded = rowImages.get(i);
+                            if (embedded != null) {
+                                imagePath = imageService.saveExtractedImage(code, embedded.data, embedded.extension);
+                            }
+                            if (imagePath != null) {
+                                result.extractedImages++;
+                            } else {
+                                result.missingEmbeddedImages++;
+                            }
+                        }
+                        if (imagePath == null && imageService != null) {
                             imagePath = imageService.getImagePath(code);
                         }
 
@@ -170,14 +226,15 @@ public class ExcelImportService {
                         // Extract shop codes — recognise both source formats:
                         //   original format : "shop 1", "shop 2" … "shop 15"
                         //   exported format : "sh-01", "sh-02" … "sh-15"
+                        // Also tolerate zero-padded / unpadded variants ("shop 01", "sh-1").
                         for (int sIdx = 1; sIdx <= Product.MAX_SHOP_CODES; sIdx++) {
-                            String originalHeader = "shop " + sIdx;
-                            String exportedHeader = "sh-" + String.format("%02d", sIdx);
                             String shopVal = null;
-                            if (colMap.containsKey(originalHeader)) {
-                                shopVal = getCellValue(row, colMap.get(originalHeader), formatter).trim();
-                            } else if (colMap.containsKey(exportedHeader)) {
-                                shopVal = getCellValue(row, colMap.get(exportedHeader), formatter).trim();
+                            for (String header : shopHeaderVariants(sIdx)) {
+                                Integer col = colMap.get(header);
+                                if (col != null) {
+                                    shopVal = getCellValue(row, col, formatter).trim();
+                                    break;
+                                }
                             }
                             if (shopVal != null && !shopVal.isEmpty()) {
                                 product.setShopCode(sIdx - 1, shopVal);
@@ -192,6 +249,83 @@ public class ExcelImportService {
                     }
                 }
             }
+        }
+    }
+
+    private String[] shopHeaderVariants(int index) {
+        String padded = String.format("%02d", index);
+        return new String[] {
+                "shop " + index,
+                "shop " + padded,
+                "sh-" + padded,
+                "sh-" + index
+        };
+    }
+
+    /**
+     * Warns once per sheet when shop columns beyond {@link Product#MAX_SHOP_CODES}
+     * are present. Only the first 15 slots are imported.
+     */
+    private void warnExtraShopColumns(Map<String, Integer> colMap, ImportResult result,
+                                      File file, Sheet sheet) {
+        List<String> extras = new ArrayList<>();
+        for (String header : colMap.keySet()) {
+            Matcher m = SHOP_HEADER_PATTERN.matcher(header);
+            if (m.matches()) {
+                try {
+                    if (Integer.parseInt(m.group(1)) > Product.MAX_SHOP_CODES) {
+                        extras.add(header);
+                    }
+                } catch (NumberFormatException ignore) {
+                    // Not a numeric shop suffix — ignore.
+                }
+            }
+        }
+        if (!extras.isEmpty()) {
+            Collections.sort(extras);
+            result.warnings.add("'" + file.getName() + "' sheet '" + sheet.getSheetName()
+                    + "': ignoring shop columns beyond " + Product.MAX_SHOP_CODES
+                    + " (" + String.join(", ", extras) + ").");
+        }
+    }
+
+    /**
+     * Maps each row index to the picture anchored on that row in the Image column.
+     */
+    private Map<Integer, EmbeddedImage> extractEmbeddedImages(Sheet sheet, Integer imageCol) {
+        Map<Integer, EmbeddedImage> images = new HashMap<>();
+        if (!(sheet instanceof XSSFSheet xssfSheet)) return images;
+
+        XSSFDrawing drawing = xssfSheet.getDrawingPatriarch();
+        if (drawing == null) return images;
+
+        for (XSSFShape shape : drawing.getShapes()) {
+            if (!(shape instanceof XSSFPicture picture)) continue;
+
+            XSSFClientAnchor anchor = picture.getClientAnchor();
+            XSSFPictureData pictureData = picture.getPictureData();
+            if (anchor == null || pictureData == null) continue;
+
+            // When the layout has an Image column, ignore pictures elsewhere
+            // (e.g. logos). Allow a one-column tolerance for anchors.
+            if (imageCol != null && Math.abs(anchor.getCol1() - imageCol) > 1) continue;
+
+            byte[] data = pictureData.getData();
+            if (data == null || data.length == 0) continue;
+
+            images.putIfAbsent(anchor.getRow1(),
+                    new EmbeddedImage(data, pictureData.suggestFileExtension()));
+        }
+        return images;
+    }
+
+    private static final class EmbeddedImage {
+        final byte[] data;
+        final String extension;
+
+        EmbeddedImage(byte[] data, String extension) {
+            this.data = data;
+            this.extension = extension;
         }
     }
 

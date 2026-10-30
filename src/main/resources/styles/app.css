@@ -267,6 +267,31 @@
     -fx-font-size: 15px;
 }
 
+/* Small edit button overlaid on the product thumbnail */
+.image-edit-btn {
+    -fx-background-color: rgba(255, 255, 255, 0.92);
+    -fx-background-radius: 4;
+    -fx-border-color: #C8C8C8;
+    -fx-border-radius: 4;
+    -fx-border-width: 1;
+    -fx-text-fill: #444;
+    -fx-font-size: 11px;
+    -fx-padding: 0;
+    -fx-min-width: 22px;
+    -fx-min-height: 22px;
+    -fx-pref-width: 22px;
+    -fx-pref-height: 22px;
+    -fx-max-width: 22px;
+    -fx-max-height: 22px;
+    -fx-cursor: hand;
+}
+
+.image-edit-btn:hover {
+    -fx-background-color: #E3F2FD;
+    -fx-border-color: #1E88E5;
+    -fx-text-fill: #1E88E5;
+}
+
 /* ======================== SHOP LINKS ======================== */
 
 .shop-link {

@@ -102,7 +102,7 @@ public class DatabaseManager {
     /**
      * Returns the app data directory path (cross-platform).
      */
-    private String getAppDataDir() {
+    public static String getAppDataDir() {
         String os = System.getProperty("os.name", "").toLowerCase();
         String home = System.getProperty("user.home");
         if (os.contains("win")) {

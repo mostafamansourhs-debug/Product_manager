@@ -39,6 +39,9 @@ public class ProductDAO {
         sql.append(") ON CONFLICT(code) DO UPDATE SET ");
         sql.append("name=excluded.name, made_in=excluded.made_in, description=excluded.description, ");
         sql.append("image_path=COALESCE(excluded.image_path, products.image_path), source_file=excluded.source_file");
+        for (int i = 1; i <= 40; i++) {
+            sql.append(", shop_code_").append(i).append("=excluded.shop_code_").append(i);
+        }
 
         try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql.toString(),
                 Statement.RETURN_GENERATED_KEYS)) {

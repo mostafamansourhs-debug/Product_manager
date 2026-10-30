@@ -7,6 +7,9 @@ import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.util.Units;
 import org.apache.poi.xssf.usermodel.*;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.List;
@@ -18,13 +21,13 @@ import java.util.logging.Logger;
  * with embedded images.
  *
  * Export format (per image specification):
- *  Col 0  – NO           width =  3 chars
- *  Col 1  – Product Name width = 25 chars  (centered, wrap)
- *  Col 2  – Made In      width =  8 chars  (bold, font 12, centered)
- *  Col 3  – Code         width =  9 chars  (centered)
- *  Col 4  – Description  width = 12 chars  (centered, wrap)
- *  Col 5  – Image        width = 10 chars  (border frame around image)
- *  Col 6+ – Sh-01…Sh-15  width =  8 chars each (centered)
+ *  Col 0  – NO           width =  3.71 chars / 950  (font 11, centered)
+ *  Col 1  – Product Name width = 24.71 chars / 6326 (bold, font 12, centered, wrap)
+ *  Col 2  – Made In      width =  8.71 chars / 2230 (bold, font 12, centered)
+ *  Col 3  – Code         width =  9.71 chars / 2486 (font 11, centered)
+ *  Col 4  – Description  width = 11.71 chars / 2999 (font 11, centered, wrap)
+ *  Col 5  – Image        width = 12.71 chars / 3254 (square image area)
+ *  Col 6+ – Sh-01…Sh-15  width =  8.71 chars / 2230 each (font 11, centered)
  *
  *  Header row height = 20pt,  font bold 11pt, blue bg, white text, centered
  *  Data   row height = 73pt,  all text/numbers centered
@@ -47,13 +50,13 @@ public class ExcelExportService {
     private static final short DATA_ROW_HEIGHT   = (short) (73 * 20);   // 73 pt
 
     // ── Column widths (POI unit: 1 char = 256) ──────────────────────────────
-    private static final int W_NO    =  3 * 256;
-    private static final int W_NAME  = 25 * 256;
-    private static final int W_MADE  =  8 * 256;
-    private static final int W_CODE  =  9 * 256;
-    private static final int W_DESC  = 12 * 256;
-    private static final int W_IMAGE = 10 * 256;
-    private static final int W_SHOP  =  8 * 256;
+    private static final int W_NO    =  950;
+    private static final int W_NAME  = 6326;
+    private static final int W_MADE  = 2230;
+    private static final int W_CODE  = 2486;
+    private static final int W_DESC  = 2999;
+    private static final int W_IMAGE = 3254;
+    private static final int W_SHOP  = 2230;
 
     // ────────────────────────────────────────────────────────────────────────
 
@@ -69,10 +72,11 @@ public class ExcelExportService {
         try (XSSFWorkbook wb = new XSSFWorkbook()) {
             XSSFSheet sheet = wb.createSheet("Products");
 
-            CellStyle headerStyle = createHeaderStyle(wb);
-            CellStyle dataStyle   = createDataStyle(wb);
-            CellStyle madeInStyle = createMadeInStyle(wb);
-            CellStyle noStyle     = createNoStyle(wb);
+            CellStyle headerStyle  = createHeaderStyle(wb);
+            CellStyle dataStyle    = createDataStyle(wb);
+            CellStyle nameStyle    = createProductNameStyle(wb);
+            CellStyle madeInStyle  = createMadeInStyle(wb);
+            CellStyle noStyle      = createNoStyle(wb);
 
             applyColumnWidths(sheet);
 
@@ -97,7 +101,7 @@ public class ExcelExportService {
 
                 Cell nameCell = row.createCell(COL_NAME);
                 nameCell.setCellValue(p.getName());
-                nameCell.setCellStyle(dataStyle);
+                nameCell.setCellStyle(nameStyle);
 
                 Cell madeInCell = row.createCell(COL_MADE_IN);
                 madeInCell.setCellValue(p.getMadeIn());
@@ -161,6 +165,7 @@ public class ExcelExportService {
                     CellStyle headerStyle    = createHeaderStyle(wb);
                     CellStyle redHeaderStyle = createRedHeaderStyle(wb);
                     CellStyle dataStyle      = createDataStyle(wb);
+                    CellStyle nameStyle      = createProductNameStyle(wb);
                     CellStyle madeInStyle    = createMadeInStyle(wb);
                     CellStyle noStyle        = createNoStyle(wb);
 
@@ -231,7 +236,7 @@ public class ExcelExportService {
 
                             Cell nameCell = row.createCell(COL_NAME);
                             nameCell.setCellValue(p.getName());
-                            nameCell.setCellStyle(dataStyle);
+                            nameCell.setCellStyle(nameStyle);
 
                             Cell madeInCell = row.createCell(COL_MADE_IN);
                             madeInCell.setCellValue(p.getMadeIn());
@@ -358,7 +363,7 @@ public class ExcelExportService {
         }
     }
 
-    // ── Helper: embed image with a thin border frame ─────────────────────────
+    // ── Helper: embed image inside a centered square area ────────────────────
 
     private void embedImage(XSSFWorkbook wb, XSSFSheet sheet,
                             XSSFDrawing drawing, Product product,
@@ -376,21 +381,46 @@ public class ExcelExportService {
 
             int pictureIdx = wb.addPicture(imageBytes, pictureType);
 
-            // 3pt inset on all sides creates a visible border frame around the image
-            int inset = Units.EMU_PER_POINT * 3;
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) return;
 
-            XSSFClientAnchor anchor = wb.getCreationHelper().createClientAnchor();
-            anchor.setCol1(COL_IMAGE);
-            anchor.setRow1(rowIndex);
-            anchor.setCol2(COL_IMAGE + 1);
-            anchor.setRow2(rowIndex + 1);
-            anchor.setDx1(inset);
-            anchor.setDy1(inset);
-            anchor.setDx2(-inset);
-            anchor.setDy2(-inset);
-            anchor.setAnchorType(ClientAnchor.AnchorType.MOVE_AND_RESIZE);
+            int cellWidth  = Math.round(sheet.getColumnWidthInPixels(COL_IMAGE) * Units.EMU_PER_PIXEL);
+            int cellHeight = Math.round(row.getHeightInPoints() * Units.EMU_PER_POINT);
+            int inset      = Units.EMU_PER_POINT * 3;
+            int squareSize = Math.min(cellWidth, cellHeight) - 2 * inset;
+            if (squareSize <= 0) return;
 
-            drawing.createPicture(anchor, pictureIdx);
+            int squareX = (cellWidth - squareSize) / 2;
+            int squareY = (cellHeight - squareSize) / 2;
+
+            int imageWidth  = squareSize;
+            int imageHeight = squareSize;
+            try {
+                BufferedImage source = ImageIO.read(new ByteArrayInputStream(imageBytes));
+                if (source != null && source.getWidth() > 0 && source.getHeight() > 0) {
+                    double scale = Math.min((double) squareSize / source.getWidth(),
+                                            (double) squareSize / source.getHeight());
+                    imageWidth  = Math.max(1, (int) Math.round(source.getWidth() * scale));
+                    imageHeight = Math.max(1, (int) Math.round(source.getHeight() * scale));
+                }
+            } catch (Exception e) {
+                LOG.log(Level.FINE, "Could not read image dimensions for: " + product.getCode(), e);
+            }
+
+            int imageX = squareX + (squareSize - imageWidth) / 2;
+            int imageY = squareY + (squareSize - imageHeight) / 2;
+
+            XSSFClientAnchor imageAnchor = wb.getCreationHelper().createClientAnchor();
+            imageAnchor.setCol1(COL_IMAGE);
+            imageAnchor.setRow1(rowIndex);
+            imageAnchor.setCol2(COL_IMAGE + 1);
+            imageAnchor.setRow2(rowIndex + 1);
+            imageAnchor.setDx1(imageX);
+            imageAnchor.setDy1(imageY);
+            imageAnchor.setDx2(-(cellWidth - imageX - imageWidth));
+            imageAnchor.setDy2(-(cellHeight - imageY - imageHeight));
+            imageAnchor.setAnchorType(ClientAnchor.AnchorType.MOVE_AND_RESIZE);
+            drawing.createPicture(imageAnchor, pictureIdx);
         } catch (Exception e) {
             LOG.log(Level.WARNING, "Failed to embed image for: " + product.getCode(), e);
         }
@@ -429,7 +459,21 @@ public class ExcelExportService {
         return style;
     }
 
-    /** Made In cells: bold 12pt, centered, thin borders. */
+    /** Product Name cells: bold 12pt, centered, wrap, thin borders. */
+    private CellStyle createProductNameStyle(XSSFWorkbook wb) {
+        CellStyle style = wb.createCellStyle();
+        Font font = wb.createFont();
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 12);
+        style.setFont(font);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        style.setWrapText(true);
+        applyThinBorders(style);
+        return style;
+    }
+
+    /** Made In cells: bold 12pt, centered, wrap, thin borders. */
     private CellStyle createMadeInStyle(XSSFWorkbook wb) {
         CellStyle style = wb.createCellStyle();
         Font font = wb.createFont();
@@ -443,7 +487,7 @@ public class ExcelExportService {
         return style;
     }
 
-    /** NO (row-number) cells: 11pt, centered, thin borders. */
+    /** No. (row-number) cells: 11pt, centered, thin borders. */
     private CellStyle createNoStyle(XSSFWorkbook wb) {
         CellStyle style = wb.createCellStyle();
         Font font = wb.createFont();
@@ -455,18 +499,18 @@ public class ExcelExportService {
         return style;
     }
 
-    /** Red group-header (export-by-shop): red bg, white bold 12pt, left-aligned. */
+    /** Red group-header (export-by-shop): red bg, white bold 11pt, centered. */
     private CellStyle createRedHeaderStyle(XSSFWorkbook wb) {
         CellStyle style = wb.createCellStyle();
         Font font = wb.createFont();
         font.setBold(true);
-        font.setFontHeightInPoints((short) 12);
+        font.setFontHeightInPoints((short) 11);
         font.setColor(IndexedColors.WHITE.getIndex());
         style.setFont(font);
         style.setFillForegroundColor(
                 new XSSFColor(new byte[]{(byte) 229, (byte) 57, (byte) 53}, null)); // #E53935
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        style.setAlignment(HorizontalAlignment.LEFT);
+        style.setAlignment(HorizontalAlignment.CENTER);
         style.setVerticalAlignment(VerticalAlignment.CENTER);
         applyThinBorders(style);
         return style;

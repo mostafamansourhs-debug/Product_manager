@@ -4,7 +4,7 @@ import javafx.beans.property.*;
 
 /**
  * Product data model with JavaFX observable properties for reactive UI binding.
- * Each product has up to 20 shop-code slots representing which shops sell it.
+ * Each product has up to 15 shop-code slots representing which shops sell it.
  */
 public class Product {
 

@@ -300,6 +300,11 @@ public class CatalogController {
         exportByShopButton.setOnAction(e -> handleExportByShop());
         exportByShopButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
+        Button exportWithNameButton = new Button("\uD83D\uDCC2 Export with Name");
+        exportWithNameButton.getStyleClass().add("btn-primary");
+        exportWithNameButton.setOnAction(e -> handleExportWithName());
+        exportWithNameButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
+
         Button unselectButton = new Button("✕ Unselect");
         unselectButton.getStyleClass().add("btn-secondary");
         unselectButton.setOnAction(e -> handleUnselect());
@@ -382,7 +387,8 @@ public class CatalogController {
             return selectedCount.get() <= 0 || shopCombo.getValue() == null || shopCombo.getValue().trim().isEmpty();
         }, selectedCount, shopCombo.valueProperty()));
 
-        toolbar.getChildren().addAll(importButton, exportButton, exportByShopButton, unselectButton, deleteButton, sep,
+        toolbar.getChildren().addAll(importButton, exportButton, exportByShopButton, exportWithNameButton,
+                unselectButton, deleteButton, sep,
                 searchFieldCombo, searchField, clearSearch, sep2, shopLabel, shopCombo, clearShop, sep3, sortLabel,
                 sortFieldCombo, sortOrderCombo, progressBar, progressLabel);
 
@@ -1408,6 +1414,172 @@ public class CatalogController {
                     ? task.getException().getMessage()
                     : "Unknown error");
             statusLabel.setText("Export failed.");
+        }));
+
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /**
+     * Lets the user choose which file tabs to export.
+     * Each selected tab is exported as a separate .xlsx file named after the tab,
+     * then its products are deleted and the (now-empty) tab is closed.
+     */
+    private void handleExportWithName() {
+        // Collect all open file tabs (exclude "All Products")
+        List<Map.Entry<String, Tab>> fileTabs = new ArrayList<>(openFileTabs.entrySet());
+        if (fileTabs.isEmpty()) {
+            showError("No File Tabs", "No file tabs are open. Import some files first.");
+            return;
+        }
+
+        // ── Tab-selection dialog ──────────────────────────────────────────
+        Dialog<List<String>> dialog = new Dialog<>();
+        dialog.setTitle("Export with Name");
+        dialog.setHeaderText("Select the tabs to export.\nEach tab will be saved as a separate .xlsx file.");
+        dialog.getDialogPane().getStylesheets().add(
+                getClass().getResource("/styles/app.css").toExternalForm());
+
+        VBox checkBoxContainer = new VBox(8);
+        checkBoxContainer.setPadding(new Insets(12));
+        List<CheckBox> checkBoxes = new ArrayList<>();
+        for (Map.Entry<String, Tab> entry : fileTabs) {
+            String tabName = entry.getKey();
+            long count = allProducts.stream().filter(p -> {
+                String sf = p.getSourceFile();
+                if (sf == null) return false;
+                String base = sf.contains(" [") ? sf.substring(0, sf.indexOf(" [")) : sf;
+                return base.equalsIgnoreCase(tabName);
+            }).count();
+            CheckBox cb = new CheckBox(tabName + "  (" + count + " products)");
+            cb.setUserData(tabName);
+            cb.setSelected(true);
+            checkBoxes.add(cb);
+            checkBoxContainer.getChildren().add(cb);
+        }
+
+        ScrollPane sp = new ScrollPane(checkBoxContainer);
+        sp.setFitToWidth(true);
+        sp.setPrefHeight(Math.min(300, fileTabs.size() * 36 + 24));
+        sp.setStyle("-fx-background-color: transparent;");
+        dialog.getDialogPane().setContent(sp);
+
+        ButtonType exportBtn = new ButtonType("Export Selected", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(exportBtn, ButtonType.CANCEL);
+
+        dialog.setResultConverter(bt -> {
+            if (bt != exportBtn) return null;
+            return checkBoxes.stream()
+                    .filter(CheckBox::isSelected)
+                    .map(cb -> (String) cb.getUserData())
+                    .collect(Collectors.toList());
+        });
+
+        List<String> selectedTabs = dialog.showAndWait().orElse(null);
+        if (selectedTabs == null || selectedTabs.isEmpty()) return;
+
+        // ── Choose save directory ─────────────────────────────────────────
+        Stage stage = (Stage) view.getScene().getWindow();
+        DirectoryChooser dc = new DirectoryChooser();
+        dc.setTitle("Choose Export Folder");
+        File dir = dc.showDialog(stage);
+        if (dir == null) return;
+
+        // ── Export each tab sequentially in a background thread ───────────
+        progressBar.setVisible(true);
+        progressLabel.setVisible(true);
+        progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+
+        ExcelExportService exportService = new ExcelExportService();
+        List<String> tabsToExport = new ArrayList<>(selectedTabs);
+
+        Task<Integer> task = new Task<>() {
+            @Override
+            protected Integer call() throws Exception {
+                int totalExported = 0;
+                for (int i = 0; i < tabsToExport.size(); i++) {
+                    String tabName = tabsToExport.get(i);
+                    updateMessage("Exporting " + tabName + " (" + (i + 1) + "/" + tabsToExport.size() + ")…");
+                    updateProgress(i, tabsToExport.size());
+
+                    List<Product> tabProducts = allProducts.stream().filter(p -> {
+                        String sf = p.getSourceFile();
+                        if (sf == null) return false;
+                        String base = sf.contains(" [") ? sf.substring(0, sf.indexOf(" [")) : sf;
+                        return base.equalsIgnoreCase(tabName);
+                    }).collect(Collectors.toList());
+
+                    if (tabProducts.isEmpty()) continue;
+
+                    // Sanitise tab name to a valid filename
+                    String safeName = tabName.replaceAll("[/\\\\:*?\"<>|]", "_");
+                    File outFile = new File(dir, safeName + ".xlsx");
+
+                    // Call the pure export method directly (safe on background threads)
+                    exportService.exportToFile(tabProducts, outFile, imageService);
+
+
+                    totalExported += tabProducts.size();
+                }
+                updateProgress(tabsToExport.size(), tabsToExport.size());
+                return totalExported;
+            }
+        };
+
+        progressBar.progressProperty().bind(task.progressProperty());
+        progressLabel.textProperty().bind(task.messageProperty());
+
+        task.setOnSucceeded(e -> Platform.runLater(() -> {
+            progressBar.setVisible(false);
+            progressLabel.setVisible(false);
+            progressBar.progressProperty().unbind();
+            progressLabel.textProperty().unbind();
+
+            // Delete products belonging to exported tabs
+            List<Product> toDelete = allProducts.stream().filter(p -> {
+                String sf = p.getSourceFile();
+                if (sf == null) return false;
+                String base = sf.contains(" [") ? sf.substring(0, sf.indexOf(" [")) : sf;
+                return tabsToExport.stream().anyMatch(t -> t.equalsIgnoreCase(base));
+            }).collect(Collectors.toList());
+
+            List<String> codes = toDelete.stream().map(Product::getCode).collect(Collectors.toList());
+            productDAO.deleteByCodes(codes);
+            allProducts.removeAll(toDelete);
+
+            if (currentDetailProduct != null && codes.stream()
+                    .anyMatch(c -> c.equalsIgnoreCase(currentDetailProduct.getCode())))
+                hideDetailPanel();
+
+            if (headerCheckBox != null) headerCheckBox.setSelected(false);
+            closeEmptyFileTabs();
+            setupFilter();
+            refreshShopCodes();
+            refreshPage();
+            updateLoadedCount();
+            updateSelectedCount();
+
+            int total = task.getValue();
+            Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                    "Exported " + tabsToExport.size() + " tab(s) with " + total
+                            + " products total to:\n" + dir.getAbsolutePath());
+            alert.setTitle("Export with Name — Complete");
+            alert.setHeaderText("Export Successful");
+            alert.getDialogPane().getStylesheets().add(
+                    getClass().getResource("/styles/app.css").toExternalForm());
+            alert.showAndWait();
+            statusLabel.setText("Export with Name: " + total + " products exported and deleted.");
+        }));
+
+        task.setOnFailed(e -> Platform.runLater(() -> {
+            progressBar.setVisible(false);
+            progressLabel.setVisible(false);
+            progressBar.progressProperty().unbind();
+            progressLabel.textProperty().unbind();
+            showError("Export Failed", task.getException() != null
+                    ? task.getException().getMessage() : "Unknown error");
+            statusLabel.setText("Export with Name failed.");
         }));
 
         Thread thread = new Thread(task);

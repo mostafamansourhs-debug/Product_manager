@@ -60,101 +60,88 @@ public class ExcelExportService {
     /**
      * Creates a JavaFX Task for background export (main export).
      */
+    /**
+     * Synchronously exports products to a file.
+     * Safe to call from any thread (no JavaFX Task involved).
+     */
+    public void exportToFile(List<Product> products, File outputFile,
+                             ImageService imageService) throws Exception {
+        try (XSSFWorkbook wb = new XSSFWorkbook()) {
+            XSSFSheet sheet = wb.createSheet("Products");
+
+            CellStyle headerStyle = createHeaderStyle(wb);
+            CellStyle dataStyle   = createDataStyle(wb);
+            CellStyle madeInStyle = createMadeInStyle(wb);
+            CellStyle noStyle     = createNoStyle(wb);
+
+            applyColumnWidths(sheet);
+
+            Row headerRow = sheet.createRow(0);
+            headerRow.setHeight(HEADER_ROW_HEIGHT);
+            String[] headers = buildHeaders();
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            XSSFDrawing drawing = sheet.createDrawingPatriarch();
+            for (int r = 0; r < products.size(); r++) {
+                Product p = products.get(r);
+                Row row = sheet.createRow(r + 1);
+                row.setHeight(DATA_ROW_HEIGHT);
+
+                Cell noCell = row.createCell(COL_NO);
+                noCell.setCellValue(r + 1);
+                noCell.setCellStyle(noStyle);
+
+                Cell nameCell = row.createCell(COL_NAME);
+                nameCell.setCellValue(p.getName());
+                nameCell.setCellStyle(dataStyle);
+
+                Cell madeInCell = row.createCell(COL_MADE_IN);
+                madeInCell.setCellValue(p.getMadeIn());
+                madeInCell.setCellStyle(madeInStyle);
+
+                Cell codeCell = row.createCell(COL_CODE);
+                codeCell.setCellValue(p.getCode());
+                codeCell.setCellStyle(dataStyle);
+
+                Cell descCell = row.createCell(COL_DESC);
+                descCell.setCellValue(p.getDescription());
+                descCell.setCellStyle(dataStyle);
+
+                Cell imgCell = row.createCell(COL_IMAGE);
+                imgCell.setCellStyle(dataStyle);
+                embedImage(wb, sheet, drawing, p, r + 1, imageService);
+
+                for (int s = 0; s < Product.MAX_SHOP_CODES; s++) {
+                    Cell shopCell = row.createCell(COL_SHOP_FIRST + s);
+                    shopCell.setCellValue(p.getShopCode(s));
+                    shopCell.setCellStyle(dataStyle);
+                }
+            }
+
+            sheet.createFreezePane(0, 1);
+            try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                wb.write(fos);
+            }
+        }
+    }
+
     public Task<Void> createExportTask(List<Product> products, File outputFile,
                                        ImageService imageService) {
         return new Task<>() {
             @Override
             protected Void call() throws Exception {
                 updateMessage("Starting export...");
-
-                try (XSSFWorkbook wb = new XSSFWorkbook()) {
-                    XSSFSheet sheet = wb.createSheet("Products");
-
-                    // ── Styles ───────────────────────────────────────────────
-                    CellStyle headerStyle = createHeaderStyle(wb);
-                    CellStyle dataStyle   = createDataStyle(wb);
-                    CellStyle madeInStyle = createMadeInStyle(wb);
-                    CellStyle noStyle     = createNoStyle(wb);
-
-                    // ── Column widths ────────────────────────────────────────
-                    applyColumnWidths(sheet);
-
-                    // ── Header row ───────────────────────────────────────────
-                    Row headerRow = sheet.createRow(0);
-                    headerRow.setHeight(HEADER_ROW_HEIGHT);
-                    String[] headers = buildHeaders();
-                    for (int i = 0; i < headers.length; i++) {
-                        Cell cell = headerRow.createCell(i);
-                        cell.setCellValue(headers[i]);
-                        cell.setCellStyle(headerStyle);
-                    }
-
-                    // ── Data rows ────────────────────────────────────────────
-                    XSSFDrawing drawing = sheet.createDrawingPatriarch();
-
-                    for (int r = 0; r < products.size(); r++) {
-                        if (isCancelled()) break;
-
-                        Product p = products.get(r);
-                        Row row = sheet.createRow(r + 1);
-                        row.setHeight(DATA_ROW_HEIGHT);
-
-                        // NO (1-based row number)
-                        Cell noCell = row.createCell(COL_NO);
-                        noCell.setCellValue(r + 1);
-                        noCell.setCellStyle(noStyle);
-
-                        // Product Name
-                        Cell nameCell = row.createCell(COL_NAME);
-                        nameCell.setCellValue(p.getName());
-                        nameCell.setCellStyle(dataStyle);
-
-                        // Made In – bold, font 12
-                        Cell madeInCell = row.createCell(COL_MADE_IN);
-                        madeInCell.setCellValue(p.getMadeIn());
-                        madeInCell.setCellStyle(madeInStyle);
-
-                        // Code
-                        Cell codeCell = row.createCell(COL_CODE);
-                        codeCell.setCellValue(p.getCode());
-                        codeCell.setCellStyle(dataStyle);
-
-                        // Description
-                        Cell descCell = row.createCell(COL_DESC);
-                        descCell.setCellValue(p.getDescription());
-                        descCell.setCellStyle(dataStyle);
-
-                        // Image column cell (empty; image drawn on top with border frame)
-                        Cell imgCell = row.createCell(COL_IMAGE);
-                        imgCell.setCellStyle(dataStyle);
-                        embedImage(wb, sheet, drawing, p, r + 1, imageService);
-
-                        // Shop codes Sh-01 … Sh-15
-                        for (int s = 0; s < Product.MAX_SHOP_CODES; s++) {
-                            Cell shopCell = row.createCell(COL_SHOP_FIRST + s);
-                            shopCell.setCellValue(p.getShopCode(s));
-                            shopCell.setCellStyle(dataStyle);
-                        }
-
-                        updateProgress(r + 1, products.size());
-                        updateMessage("Exporting: " + (r + 1) + "/" + products.size());
-                    }
-
-                    // Freeze header row
-                    sheet.createFreezePane(0, 1);
-
-                    // Write file
-                    updateMessage("Saving file...");
-                    try (FileOutputStream fos = new FileOutputStream(outputFile)) {
-                        wb.write(fos);
-                    }
-                }
-
+                exportToFile(products, outputFile, imageService);
                 updateMessage("Export complete: " + products.size() + " products.");
                 return null;
             }
         };
     }
+
 
     // ────────────────────────────────────────────────────────────────────────
 

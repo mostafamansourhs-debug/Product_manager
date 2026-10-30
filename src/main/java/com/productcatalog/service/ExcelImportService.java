@@ -167,11 +167,19 @@ public class ExcelImportService {
                         }
                         product.setSourceFile(file.getName() + " [" + sheet.getSheetName() + "]");
                         
-                        // Extract shop codes
+                        // Extract shop codes — recognise both source formats:
+                        //   original format : "shop 1", "shop 2" … "shop 15"
+                        //   exported format : "sh-01", "sh-02" … "sh-15"
                         for (int sIdx = 1; sIdx <= Product.MAX_SHOP_CODES; sIdx++) {
-                            String shopHeader = "shop " + sIdx;
-                            if (colMap.containsKey(shopHeader)) {
-                                String shopVal = getCellValue(row, colMap.get(shopHeader), formatter).trim();
+                            String originalHeader = "shop " + sIdx;
+                            String exportedHeader = "sh-" + String.format("%02d", sIdx);
+                            String shopVal = null;
+                            if (colMap.containsKey(originalHeader)) {
+                                shopVal = getCellValue(row, colMap.get(originalHeader), formatter).trim();
+                            } else if (colMap.containsKey(exportedHeader)) {
+                                shopVal = getCellValue(row, colMap.get(exportedHeader), formatter).trim();
+                            }
+                            if (shopVal != null && !shopVal.isEmpty()) {
                                 product.setShopCode(sIdx - 1, shopVal);
                             }
                         }

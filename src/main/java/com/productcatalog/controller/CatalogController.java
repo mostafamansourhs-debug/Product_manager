@@ -67,6 +67,7 @@ public class CatalogController {
     private ComboBox<String> sortOrderCombo;
     private Button exportButton;
     private Button exportByShopButton;
+    private CheckBox imagesOnlyCheckBox;
     private Label loadedCountLabel;
     private Label selectedCountLabel;
     private ProgressBar progressBar;
@@ -296,6 +297,11 @@ public class CatalogController {
         importWithPicButton.setOnAction(e -> handleImport(true));
         importWithPicButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
+        imagesOnlyCheckBox = new CheckBox("Images only");
+        imagesOnlyCheckBox.setTooltip(new Tooltip(
+                "Only export products that have an image"));
+        imagesOnlyCheckBox.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+
         exportButton = new Button("\uD83D\uDCE4 Export");
         exportButton.getStyleClass().add("btn-primary");
         exportButton.setOnAction(e -> handleExport());
@@ -394,8 +400,8 @@ public class CatalogController {
             return selectedCount.get() <= 0 || shopCombo.getValue() == null || shopCombo.getValue().trim().isEmpty();
         }, selectedCount, shopCombo.valueProperty()));
 
-        toolbar.getChildren().addAll(importButton, importWithPicButton, exportButton, exportByShopButton,
-                exportWithNameButton,
+        toolbar.getChildren().addAll(importButton, importWithPicButton, imagesOnlyCheckBox,
+                exportButton, exportByShopButton, exportWithNameButton,
                 unselectButton, deleteButton, sep,
                 searchFieldCombo, searchField, clearSearch, sep2, shopLabel, shopCombo, clearShop, sep3, sortLabel,
                 sortFieldCombo, sortOrderCombo, progressBar, progressLabel);
@@ -1396,6 +1402,43 @@ public class CatalogController {
         });
     }
 
+    private boolean imagesOnlySelected() {
+        return imagesOnlyCheckBox != null && imagesOnlyCheckBox.isSelected();
+    }
+
+    /**
+     * Returns only the products that can actually be exported when the
+     * "Images only" toggle is on. When it is off, the list is returned as-is.
+     */
+    private List<Product> filterExportable(List<Product> products) {
+        if (!imagesOnlySelected()) return products;
+        return products.stream()
+                .filter(p -> imageService.hasReadableImage(p.getCode()))
+                .collect(Collectors.toList());
+    }
+
+    private void showNoImagesWarning(String subject) {
+        showError("No Images",
+                "Images-only export is on, but " + subject + " have an image.\n"
+                        + "Turn off \"Images only\" to export all products.");
+    }
+
+    private static String sourceTab(Product product) {
+        String sf = product.getSourceFile();
+        if (sf == null) return null;
+        return sf.contains(" [") ? sf.substring(0, sf.indexOf(" [")) : sf;
+    }
+
+    private static boolean belongsToTab(Product product, String tabName) {
+        String base = sourceTab(product);
+        return base != null && base.equalsIgnoreCase(tabName);
+    }
+
+    private static boolean belongsToAnyTab(Product product, Collection<String> tabNames) {
+        String base = sourceTab(product);
+        return base != null && tabNames.stream().anyMatch(t -> t.equalsIgnoreCase(base));
+    }
+
     private void handleExport() {
         List<Product> selected = allProducts.stream()
                 .filter(Product::isSelected)
@@ -1403,6 +1446,12 @@ public class CatalogController {
 
         if (selected.isEmpty()) {
             showError("No Selection", "Please select at least one product to export.");
+            return;
+        }
+
+        List<Product> toExport = filterExportable(selected);
+        if (toExport.isEmpty()) {
+            showNoImagesWarning("none of the selected products");
             return;
         }
 
@@ -1421,7 +1470,7 @@ public class CatalogController {
         progressBar.setProgress(0);
 
         ExcelExportService exportService = new ExcelExportService();
-        Task<Void> task = exportService.createExportTask(selected, file, imageService);
+        Task<Void> task = exportService.createExportTask(toExport, file, imageService);
 
         progressBar.progressProperty().bind(task.progressProperty());
         progressLabel.textProperty().bind(task.messageProperty());
@@ -1432,13 +1481,13 @@ public class CatalogController {
             progressBar.progressProperty().unbind();
             progressLabel.textProperty().unbind();
 
-            // Delete exported products
-            List<String> codes = selected.stream()
+            // Delete only the products that were actually exported
+            List<String> codes = toExport.stream()
                     .map(Product::getCode)
                     .collect(Collectors.toList());
 
             int deleted = productDAO.deleteByCodes(codes);
-            allProducts.removeAll(selected);
+            allProducts.removeAll(toExport);
 
             // Close detail panel if the currently displayed product was deleted
             if (currentDetailProduct != null && codes.stream()
@@ -1492,6 +1541,12 @@ public class CatalogController {
             return;
         }
 
+        List<Product> toExport = filterExportable(selected);
+        if (toExport.isEmpty()) {
+            showNoImagesWarning("none of the selected products");
+            return;
+        }
+
         String shopId = shopCombo.getValue();
         if (shopId != null) shopId = shopId.trim();
 
@@ -1510,7 +1565,7 @@ public class CatalogController {
         progressBar.setProgress(0);
 
         ExcelExportService exportService = new ExcelExportService();
-        Task<Void> task = exportService.createExportByShopTask(selected, shopId, file, imageService);
+        Task<Void> task = exportService.createExportByShopTask(toExport, shopId, file, imageService);
 
         progressBar.progressProperty().bind(task.progressProperty());
         progressLabel.textProperty().bind(task.messageProperty());
@@ -1521,8 +1576,8 @@ public class CatalogController {
             progressBar.progressProperty().unbind();
             progressLabel.textProperty().unbind();
 
-            // Unselect exported products (do NOT delete them)
-            for (Product p : selected) {
+            // Unselect only exported products (do NOT delete them)
+            for (Product p : toExport) {
                 p.setSelected(false);
             }
 
@@ -1533,13 +1588,13 @@ public class CatalogController {
             updateSelectedCount();
 
             Alert alert = new Alert(Alert.AlertType.INFORMATION,
-                    "Successfully exported " + selected.size() + " products to:\n" + file.getName());
+                    "Successfully exported " + toExport.size() + " products to:\n" + file.getName());
             alert.setTitle("Export Complete");
             alert.setHeaderText("Export Successful");
             alert.getDialogPane().getStylesheets().add(
                     getClass().getResource("/styles/app.css").toExternalForm());
             alert.showAndWait();
-            statusLabel.setText("Export complete: " + selected.size() + " products exported.");
+            statusLabel.setText("Export complete: " + toExport.size() + " products exported.");
         }));
 
         task.setOnFailed(e -> Platform.runLater(() -> {
@@ -1558,6 +1613,16 @@ public class CatalogController {
         thread.start();
     }
 
+    private static final class NamedExportResult {
+        final int tabs;
+        final int products;
+
+        NamedExportResult(int tabs, int products) {
+            this.tabs = tabs;
+            this.products = products;
+        }
+    }
+
     /**
      * Lets the user choose which file tabs to export.
      * Each selected tab is exported as a separate .xlsx file named after the tab,
@@ -1571,10 +1636,13 @@ public class CatalogController {
             return;
         }
 
+        boolean imagesOnly = imagesOnlySelected();
+
         // ── Tab-selection dialog ──────────────────────────────────────────
         Dialog<List<String>> dialog = new Dialog<>();
         dialog.setTitle("Export with Name");
-        dialog.setHeaderText("Select the tabs to export.\nEach tab will be saved as a separate .xlsx file.");
+        dialog.setHeaderText("Select the tabs to export.\nEach tab will be saved as a separate .xlsx file."
+                + (imagesOnly ? "\nOnly products with images will be exported." : ""));
         dialog.getDialogPane().getStylesheets().add(
                 getClass().getResource("/styles/app.css").toExternalForm());
 
@@ -1583,13 +1651,12 @@ public class CatalogController {
         List<CheckBox> checkBoxes = new ArrayList<>();
         for (Map.Entry<String, Tab> entry : fileTabs) {
             String tabName = entry.getKey();
-            long count = allProducts.stream().filter(p -> {
-                String sf = p.getSourceFile();
-                if (sf == null) return false;
-                String base = sf.contains(" [") ? sf.substring(0, sf.indexOf(" [")) : sf;
-                return base.equalsIgnoreCase(tabName);
-            }).count();
-            CheckBox cb = new CheckBox(tabName + "  (" + count + " products)");
+            long count = allProducts.stream()
+                    .filter(p -> belongsToTab(p, tabName))
+                    .filter(p -> !imagesOnly || imageService.hasReadableImage(p.getCode()))
+                    .count();
+            CheckBox cb = new CheckBox(tabName + "  (" + count
+                    + (imagesOnly ? " with images)" : " products)"));
             cb.setUserData(tabName);
             cb.setSelected(true);
             checkBoxes.add(cb);
@@ -1616,6 +1683,16 @@ public class CatalogController {
         List<String> selectedTabs = dialog.showAndWait().orElse(null);
         if (selectedTabs == null || selectedTabs.isEmpty()) return;
 
+        if (imagesOnly) {
+            boolean anyExportable = allProducts.stream()
+                    .filter(p -> belongsToAnyTab(p, selectedTabs))
+                    .anyMatch(p -> imageService.hasReadableImage(p.getCode()));
+            if (!anyExportable) {
+                showNoImagesWarning("none of the products in the chosen tabs");
+                return;
+            }
+        }
+
         // ── Choose save directory ─────────────────────────────────────────
         Stage stage = (Stage) view.getScene().getWindow();
         DirectoryChooser dc = new DirectoryChooser();
@@ -1631,21 +1708,20 @@ public class CatalogController {
         ExcelExportService exportService = new ExcelExportService();
         List<String> tabsToExport = new ArrayList<>(selectedTabs);
 
-        Task<Integer> task = new Task<>() {
+        Task<NamedExportResult> task = new Task<>() {
             @Override
-            protected Integer call() throws Exception {
+            protected NamedExportResult call() throws Exception {
                 int totalExported = 0;
+                int tabsExported = 0;
                 for (int i = 0; i < tabsToExport.size(); i++) {
                     String tabName = tabsToExport.get(i);
                     updateMessage("Exporting " + tabName + " (" + (i + 1) + "/" + tabsToExport.size() + ")…");
                     updateProgress(i, tabsToExport.size());
 
-                    List<Product> tabProducts = allProducts.stream().filter(p -> {
-                        String sf = p.getSourceFile();
-                        if (sf == null) return false;
-                        String base = sf.contains(" [") ? sf.substring(0, sf.indexOf(" [")) : sf;
-                        return base.equalsIgnoreCase(tabName);
-                    }).collect(Collectors.toList());
+                    List<Product> tabProducts = allProducts.stream()
+                            .filter(p -> belongsToTab(p, tabName))
+                            .filter(p -> !imagesOnly || imageService.hasReadableImage(p.getCode()))
+                            .collect(Collectors.toList());
 
                     if (tabProducts.isEmpty()) continue;
 
@@ -1656,11 +1732,11 @@ public class CatalogController {
                     // Call the pure export method directly (safe on background threads)
                     exportService.exportToFile(tabProducts, outFile, imageService);
 
-
                     totalExported += tabProducts.size();
+                    tabsExported++;
                 }
                 updateProgress(tabsToExport.size(), tabsToExport.size());
-                return totalExported;
+                return new NamedExportResult(tabsExported, totalExported);
             }
         };
 
@@ -1673,13 +1749,11 @@ public class CatalogController {
             progressBar.progressProperty().unbind();
             progressLabel.textProperty().unbind();
 
-            // Delete products belonging to exported tabs
-            List<Product> toDelete = allProducts.stream().filter(p -> {
-                String sf = p.getSourceFile();
-                if (sf == null) return false;
-                String base = sf.contains(" [") ? sf.substring(0, sf.indexOf(" [")) : sf;
-                return tabsToExport.stream().anyMatch(t -> t.equalsIgnoreCase(base));
-            }).collect(Collectors.toList());
+            // Delete only the products that were actually exported
+            List<Product> toDelete = allProducts.stream()
+                    .filter(p -> belongsToAnyTab(p, tabsToExport))
+                    .filter(p -> !imagesOnly || imageService.hasReadableImage(p.getCode()))
+                    .collect(Collectors.toList());
 
             List<String> codes = toDelete.stream().map(Product::getCode).collect(Collectors.toList());
             productDAO.deleteByCodes(codes);
@@ -1697,16 +1771,17 @@ public class CatalogController {
             updateLoadedCount();
             updateSelectedCount();
 
-            int total = task.getValue();
+            NamedExportResult result = task.getValue();
             Alert alert = new Alert(Alert.AlertType.INFORMATION,
-                    "Exported " + tabsToExport.size() + " tab(s) with " + total
+                    "Exported " + result.tabs + " tab(s) with " + result.products
                             + " products total to:\n" + dir.getAbsolutePath());
             alert.setTitle("Export with Name — Complete");
             alert.setHeaderText("Export Successful");
             alert.getDialogPane().getStylesheets().add(
                     getClass().getResource("/styles/app.css").toExternalForm());
             alert.showAndWait();
-            statusLabel.setText("Export with Name: " + total + " products exported and deleted.");
+            statusLabel.setText("Export with Name: " + result.products
+                    + " products exported and deleted.");
         }));
 
         task.setOnFailed(e -> Platform.runLater(() -> {

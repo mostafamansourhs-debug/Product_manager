@@ -12,6 +12,7 @@ A cross-platform JavaFX desktop application for managing product catalogs import
 - **Shop Code Management**: Assign up to 15 shop codes per product via inline editing
 - **Shop Discovery**: Browse products by shop code with a searchable dropdown
 - **Excel Export**: Export selected products to `.xlsx` with embedded images
+- **Images-only Export**: Optionally export only products that have an image
 - **Persistent Storage**: SQLite database stores products and shop code assignments between sessions
 - **Pagination**: Handle thousands of products efficiently
 - **Search & Filter**: Filter by product name, code, made-in, or shop code
@@ -100,6 +101,20 @@ Use **Import with Pic** to re-import files produced by **Export** or **Export by
 
 Double-click a product thumbnail in the table (or the image in the detail panel) to open a
 large, resizable image window. The **View Image** button in the detail panel does the same.
+
+## Images-only Export
+
+Enable the **Images only** checkbox in the toolbar to export only selected products that
+have a readable image. It applies to **Export**, **Export by Shop**, and **Export with
+Name**:
+
+- Products without images are skipped and remain selected; only exported products are
+  deleted or unselected.
+- With **Export with Name**, tabs with no image-bearing products are skipped, and
+  partially exported tabs stay open with their remaining products.
+- If no selected product or chosen tab has an image, a warning is shown and no file is
+  created.
+- Leave the checkbox off for the normal export behavior.
 
 ## Changing a Product Image
 

@@ -215,6 +215,20 @@ public class ImageService {
     }
 
     /**
+     * Returns true when an image is mapped for the code and its file can be
+     * read. Used by export filtering so missing files are not counted.
+     */
+    public boolean hasReadableImage(String productCode) {
+        String path = getImagePath(productCode);
+        if (path == null) return false;
+        try {
+            return Files.isReadable(Path.of(path));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * Loads and returns a thumbnail Image for the product code.
      * Uses caching to avoid re-reading files.
      */

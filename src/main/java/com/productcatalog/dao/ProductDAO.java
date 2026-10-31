@@ -362,4 +362,38 @@ public class ProductDAO {
             try { conn.setAutoCommit(true); } catch (SQLException e) { /* ignore */ }
         }
     }
+
+    /**
+     * Batch-updates the source_file column for a list of products identified by
+     * their codes, reassigning them to {@code targetSourceFile}.
+     * Runs in a single transaction for efficiency.
+     *
+     * @param codes            product codes to reassign
+     * @param targetSourceFile the new source_file value (i.e., the target tab name)
+     * @return number of rows updated
+     */
+    public int moveProductsToSourceFile(List<String> codes, String targetSourceFile) {
+        if (codes == null || codes.isEmpty()) return 0;
+        String placeholders = codes.stream().map(c -> "?").collect(java.util.stream.Collectors.joining(", "));
+        String sql = "UPDATE products SET source_file = ? WHERE LOWER(code) IN (" + placeholders + ")";
+        Connection conn = dbManager.getConnection();
+        try {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, targetSourceFile);
+                for (int i = 0; i < codes.size(); i++) {
+                    ps.setString(i + 2, codes.get(i).toLowerCase());
+                }
+                int updated = ps.executeUpdate();
+                conn.commit();
+                return updated;
+            }
+        } catch (SQLException e) {
+            LOG.log(Level.SEVERE, "Failed to move products to source file: " + targetSourceFile, e);
+            try { conn.rollback(); } catch (SQLException ex) { /* ignore */ }
+            return 0;
+        } finally {
+            try { conn.setAutoCommit(true); } catch (SQLException e) { /* ignore */ }
+        }
+    }
 }

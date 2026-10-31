@@ -723,3 +723,105 @@
     -fx-border-width: 0 0 3 0;
     -fx-background-color: rgba(30, 136, 229, 0.06);
 }
+/* ======================== SECONDARY BUTTON ======================== */
+
+.btn-secondary {
+    -fx-background-color: #ECEFF1;
+    -fx-text-fill: #455A64;
+    -fx-font-weight: bold;
+    -fx-padding: 8 16 8 16;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-border-color: #B0BEC5;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+}
+
+.btn-secondary:hover {
+    -fx-background-color: #CFD8DC;
+    -fx-border-color: #90A4AE;
+}
+
+.btn-secondary:pressed {
+    -fx-background-color: #B0BEC5;
+}
+
+.btn-secondary:disabled {
+    -fx-background-color: #F5F5F5;
+    -fx-text-fill: #BDBDBD;
+    -fx-border-color: #E0E0E0;
+    -fx-cursor: default;
+}
+
+/* ======================== MOVE BUTTON ======================== */
+
+.btn-move {
+    -fx-background-color: #F57C00;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 16 8 16;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(245, 124, 0, 0.3), 4, 0, 0, 1);
+}
+
+.btn-move:hover {
+    -fx-background-color: #E65100;
+    -fx-effect: dropshadow(gaussian, rgba(230, 81, 0, 0.4), 6, 0, 0, 2);
+}
+
+.btn-move:pressed {
+    -fx-background-color: #BF360C;
+}
+
+.btn-move:disabled {
+    -fx-background-color: #B0BEC5;
+    -fx-effect: none;
+    -fx-cursor: default;
+}
+
+/* ======================== MOVE DIALOG ======================== */
+
+/* Source-tab info label */
+.move-source-label {
+    -fx-text-fill: #888;
+    -fx-font-size: 11px;
+    -fx-padding: 0 0 4 2;
+}
+
+/* Target tab ListView */
+.move-tab-list {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #D0D0D0;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.move-tab-list .list-cell {
+    -fx-padding: 8 12;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent #F0F0F0 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.move-tab-list .list-cell:selected {
+    -fx-background-color: #E3F2FD;
+    -fx-border-color: transparent transparent #BBDEFB transparent;
+}
+
+.move-tab-list .list-cell:hover:!selected {
+    -fx-background-color: #F5F5F5;
+}
+
+/* Tab name label inside each row */
+.move-tab-name {
+    -fx-font-weight: bold;
+    -fx-text-fill: #333;
+    -fx-font-size: 13px;
+}
+
+/* Product-count badge inside each row */
+.move-tab-count {
+    -fx-text-fill: #888;
+    -fx-font-size: 11px;
+}

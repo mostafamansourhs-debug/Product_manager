@@ -330,6 +330,13 @@ public class CatalogController {
         unselectButton.disableProperty().bind(selectedCount.lessThanOrEqualTo(0));
         unselectButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
 
+        Button moveButton = new Button("→ Move to Tab");
+        moveButton.getStyleClass().add("btn-move");
+        moveButton.setOnAction(e -> handleMove());
+        moveButton.disableProperty().bind(selectedCount.lessThanOrEqualTo(0));
+        moveButton.setMinSize(Button.USE_PREF_SIZE, Button.USE_PREF_SIZE);
+        moveButton.setTooltip(new Tooltip("Move selected products to another file tab"));
+
         Button deleteButton = new Button("\uD83D\uDDD1 Delete");
         deleteButton.getStyleClass().add("btn-danger");
         deleteButton.setOnAction(e -> handleDelete());
@@ -408,7 +415,7 @@ public class CatalogController {
 
         toolbar.getChildren().addAll(importButton, importWithPicButton, imagesOnlyCheckBox,
                 exportButton, exportByShopButton, exportWithNameButton,
-                unselectButton, deleteButton, sep,
+                unselectButton, moveButton, deleteButton, sep,
                 searchFieldCombo, searchField, clearSearch, sep2, shopLabel, shopCombo, clearShop, sep3, sortLabel,
                 sortFieldCombo, sortOrderCombo, progressBar, progressLabel);
 
@@ -1513,6 +1520,157 @@ public class CatalogController {
     }
 
     // ======================== EXPORT ========================
+
+    // ======================== MOVE ========================
+
+    /**
+     * Lets the user move selected products to a different file tab.
+     *
+     * <p>Workflow:
+     * <ol>
+     *   <li>Collect all currently selected products.</li>
+     *   <li>Show a dialog listing every open file tab as a potential target,
+     *       annotated with the number of products already in that tab.</li>
+     *   <li>On confirmation, update each product's source_file both in-memory
+     *       and in the database (background thread).</li>
+     *   <li>Close any source tabs that are now empty and refresh the UI.</li>
+     * </ol>
+     */
+    private void handleMove() {
+        List<Product> selected = allProducts.stream()
+                .filter(Product::isSelected)
+                .collect(Collectors.toList());
+
+        if (selected.isEmpty()) {
+            showError("No Selection", "Please select at least one product to move.");
+            return;
+        }
+
+        // Collect all open file tabs as potential targets
+        List<String> allTabs = new ArrayList<>(openFileTabs.keySet());
+        if (allTabs.isEmpty()) {
+            showError("No File Tabs",
+                    "No file tabs are open. Import at least one file before moving products.");
+            return;
+        }
+
+        // ---- Build the move dialog ----------------------------------------
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Move Products to Tab");
+        dialog.setHeaderText(
+                "Move " + selected.size() + " selected product(s) to a different tab.\n"
+                + "Choose the target tab:");
+        dialog.getDialogPane().getStylesheets().add(
+                getClass().getResource("/styles/app.css").toExternalForm());
+
+        // Summary of which source tabs the selection currently spans
+        long distinctSources = selected.stream()
+                .map(p -> p.getSourceFile() == null ? "" : p.getSourceFile())
+                .distinct().count();
+        String sourceInfo = distinctSources == 1
+                ? "From: " + (selected.get(0).getSourceFile() != null
+                        ? selected.get(0).getSourceFile() : "unknown")
+                : "From: " + distinctSources + " different tabs";
+        Label sourceLabel = new Label(sourceInfo);
+        sourceLabel.getStyleClass().add("move-source-label");
+
+        // ListView of target tabs annotated with product counts
+        ObservableList<String> tabItems = FXCollections.observableArrayList(allTabs);
+        ListView<String> tabList = new ListView<>(tabItems);
+        tabList.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
+        tabList.setPrefHeight(Math.min(280, allTabs.size() * 40 + 16));
+        tabList.setPrefWidth(400);
+        tabList.getStyleClass().add("move-tab-list");
+
+        tabList.setCellFactory(lv -> new ListCell<String>() {
+            @Override
+            protected void updateItem(String tabName, boolean empty) {
+                super.updateItem(tabName, empty);
+                if (empty || tabName == null) { setText(null); setGraphic(null); return; }
+
+                long totalInTab = allProducts.stream()
+                        .filter(p -> belongsToTab(p, tabName)).count();
+                long alreadyHere = selected.stream()
+                        .filter(p -> belongsToTab(p, tabName)).count();
+
+                HBox cellRow = new HBox(8);
+                cellRow.setAlignment(Pos.CENTER_LEFT);
+
+                Label nameLabel = new Label("  " + tabName);
+                nameLabel.getStyleClass().add("move-tab-name");
+
+                Region cellSpacer = new Region();
+                HBox.setHgrow(cellSpacer, Priority.ALWAYS);
+
+                String badge = totalInTab + " product" + (totalInTab == 1 ? "" : "s");
+                if (alreadyHere > 0) {
+                    badge += "  •  " + alreadyHere + " already here";
+                }
+                Label countLabel = new Label(badge);
+                countLabel.getStyleClass().add("move-tab-count");
+
+                cellRow.getChildren().addAll(nameLabel, cellSpacer, countLabel);
+                setGraphic(cellRow);
+                setText(null);
+            }
+        });
+
+        VBox dialogContent = new VBox(8, sourceLabel, tabList);
+        dialogContent.setPadding(new Insets(12));
+        dialog.getDialogPane().setContent(dialogContent);
+
+        ButtonType moveBtnType = new ButtonType("→ Move Here", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(moveBtnType, ButtonType.CANCEL);
+
+        // Disable the Move button until a target is selected in the list
+        Node moveBtnNode = dialog.getDialogPane().lookupButton(moveBtnType);
+        moveBtnNode.setDisable(true);
+        tabList.getSelectionModel().selectedItemProperty().addListener(
+                (obs, old, val) -> moveBtnNode.setDisable(val == null));
+
+        dialog.setResultConverter(bt ->
+                bt == moveBtnType ? tabList.getSelectionModel().getSelectedItem() : null);
+
+        String targetTab = dialog.showAndWait().orElse(null);
+        if (targetTab == null) return;
+
+        // ---- Perform the move -----------------------------------------------
+        // Only move products not already in the target tab
+        List<Product> toMove = selected.stream()
+                .filter(p -> !belongsToTab(p, targetTab))
+                .collect(Collectors.toList());
+
+        if (toMove.isEmpty()) {
+            statusLabel.setText("All selected products are already in \"" + targetTab + "\".");
+            selected.forEach(p -> p.setSelected(false));
+            if (headerCheckBox != null) headerCheckBox.setSelected(false);
+            tableView.refresh();
+            updateSelectedCount();
+            return;
+        }
+
+        List<String> codes = toMove.stream().map(Product::getCode).collect(Collectors.toList());
+
+        // Persist the source_file change in a background thread
+        Thread t = new Thread(() -> productDAO.moveProductsToSourceFile(codes, targetTab));
+        t.setDaemon(true);
+        t.start();
+
+        // Update in-memory model immediately so UI reflects the change at once
+        toMove.forEach(p -> p.setSourceFile(targetTab));
+        selected.forEach(p -> p.setSelected(false));
+        if (headerCheckBox != null) headerCheckBox.setSelected(false);
+
+        // Close any tabs that lost all their products, then refresh the view
+        closeEmptyFileTabs();
+        setupFilter();
+        refreshShopCodes();
+        refreshPage();
+        updateLoadedCount();
+        updateSelectedCount();
+
+        statusLabel.setText(toMove.size() + " product(s) moved to \"" + targetTab + "\".");
+    }
 
     private void handleUnselect() {
         for (Product p : allProducts) {

@@ -363,7 +363,23 @@ public class ExcelExportService {
         }
     }
 
-    // ── Helper: embed image inside a centered square area ────────────────────
+    // ── Helper: fit the image inside the cell without exceeding cell bounds ──
+
+    static int[] calculateImageFit(int cellWidth, int cellHeight, int imageWidth, int imageHeight, int padding) {
+        int availableWidth = Math.max(0, cellWidth - (padding * 2));
+        int availableHeight = Math.max(0, cellHeight - (padding * 2));
+        if (imageWidth <= 0 || imageHeight <= 0 || availableWidth <= 0 || availableHeight <= 0) {
+            return new int[]{0, 0, 0, 0};
+        }
+
+        double scale = Math.min((double) availableWidth / imageWidth,
+                                (double) availableHeight / imageHeight);
+        int fittedWidth = Math.max(1, (int) Math.round(imageWidth * scale));
+        int fittedHeight = Math.max(1, (int) Math.round(imageHeight * scale));
+        int offsetX = (cellWidth - fittedWidth) / 2;
+        int offsetY = (cellHeight - fittedHeight) / 2;
+        return new int[]{fittedWidth, fittedHeight, offsetX, offsetY};
+    }
 
     private void embedImage(XSSFWorkbook wb, XSSFSheet sheet,
                             XSSFDrawing drawing, Product product,
@@ -384,31 +400,22 @@ public class ExcelExportService {
             Row row = sheet.getRow(rowIndex);
             if (row == null) return;
 
-            int cellWidth  = Math.round(sheet.getColumnWidthInPixels(COL_IMAGE) * Units.EMU_PER_PIXEL);
-            int cellHeight = Math.round(row.getHeightInPoints() * Units.EMU_PER_POINT);
-            int inset      = Units.EMU_PER_POINT * 3;
-            int squareSize = Math.min(cellWidth, cellHeight) - 2 * inset;
-            if (squareSize <= 0) return;
-
-            int squareX = (cellWidth - squareSize) / 2;
-            int squareY = (cellHeight - squareSize) / 2;
-
-            int imageWidth  = squareSize;
-            int imageHeight = squareSize;
-            try {
-                BufferedImage source = ImageIO.read(new ByteArrayInputStream(imageBytes));
-                if (source != null && source.getWidth() > 0 && source.getHeight() > 0) {
-                    double scale = Math.min((double) squareSize / source.getWidth(),
-                                            (double) squareSize / source.getHeight());
-                    imageWidth  = Math.max(1, (int) Math.round(source.getWidth() * scale));
-                    imageHeight = Math.max(1, (int) Math.round(source.getHeight() * scale));
-                }
-            } catch (Exception e) {
-                LOG.log(Level.FINE, "Could not read image dimensions for: " + product.getCode(), e);
+            BufferedImage source = ImageIO.read(new ByteArrayInputStream(imageBytes));
+            if (source == null || source.getWidth() <= 0 || source.getHeight() <= 0) {
+                return;
             }
 
-            int imageX = squareX + (squareSize - imageWidth) / 2;
-            int imageY = squareY + (squareSize - imageHeight) / 2;
+            int cellWidth  = Math.round(sheet.getColumnWidthInPixels(COL_IMAGE) * Units.EMU_PER_PIXEL);
+            int cellHeight = Math.round(row.getHeightInPoints() * Units.EMU_PER_POINT);
+            int inset = Math.max(1, Units.EMU_PER_POINT * 3);
+
+            int sourceWidth = Units.toEMU(source.getWidth());
+            int sourceHeight = Units.toEMU(source.getHeight());
+            int[] fit = calculateImageFit(cellWidth, cellHeight, sourceWidth, sourceHeight, inset);
+            int imageWidth = fit[0];
+            int imageHeight = fit[1];
+            int imageX = fit[2];
+            int imageY = fit[3];
 
             XSSFClientAnchor imageAnchor = wb.getCreationHelper().createClientAnchor();
             imageAnchor.setCol1(COL_IMAGE);

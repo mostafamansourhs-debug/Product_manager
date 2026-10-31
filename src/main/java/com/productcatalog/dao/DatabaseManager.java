@@ -97,6 +97,17 @@ public class DatabaseManager {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_products_code ON products(code)");
         }
+
+        // Migrate: add sort_order column if it does not exist yet
+        try (Statement stmt = connection.createStatement()) {
+            try {
+                stmt.execute("ALTER TABLE products ADD COLUMN sort_order INTEGER DEFAULT 0");
+                // Initialise existing rows with their current rowid order
+                stmt.execute("UPDATE products SET sort_order = id WHERE sort_order = 0 OR sort_order IS NULL");
+            } catch (SQLException ignore) {
+                // Column already exists — nothing to do
+            }
+        }
     }
 
     /**

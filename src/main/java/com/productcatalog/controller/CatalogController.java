@@ -19,7 +19,10 @@ import javafx.geometry.*;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.Dragboard;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.TransferMode;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
@@ -87,6 +90,9 @@ public class CatalogController {
 
     // Selection count
     private final IntegerProperty selectedCount = new SimpleIntegerProperty(0);
+
+    // Drag-and-drop reorder state
+    private int dragSourceIndex = -1;
 
     public CatalogController(Label statusLabel) {
         this.statusLabel = statusLabel;
@@ -587,9 +593,155 @@ public class CatalogController {
 
         table.getColumns().addAll(checkCol, imageCol, nameCol, madeInCol, codeCol, descCol, shopsCol);
 
-
+        // Install drag-and-drop row reordering
+        installRowDragAndDrop(table);
 
         return table;
+    }
+
+    /**
+     * Installs drag-and-drop row reordering on the given TableView.
+     * Dragging is only active when Sort is set to "None".
+     * On a successful drop the global allProducts list is reordered,
+     * sort_order values are updated and persisted to the database.
+     *
+     * <p>Design notes:
+     * <ul>
+     *   <li>The table shows a page-slice of filteredProducts / allProducts.
+     *       We resolve page indices to allProducts indices via indexOf so
+     *       pagination and tab-filtering are handled correctly.</li>
+     *   <li>We remove the source first, then compute the final insertion point:
+     *       if the source came before the destination the removal shifted the
+     *       destination index down by one, so we subtract 1 to compensate.</li>
+     *   <li>Drop-indicator styling (drag-over-top / drag-over-bottom) is driven
+     *       entirely by CSS classes defined in app.css.</li>
+     * </ul>
+     */
+    private void installRowDragAndDrop(TableView<Product> table) {
+        table.setRowFactory(tv -> {
+            TableRow<Product> row = new TableRow<>();
+
+            // -- DRAG DETECTED --
+            row.setOnDragDetected(event -> {
+                if (row.isEmpty()) return;
+                // Drag-reorder is only allowed when no column sort is active
+                if (!"None".equals(sortFieldCombo.getValue())) return;
+
+                dragSourceIndex = row.getIndex();
+                Dragboard db = row.startDragAndDrop(TransferMode.MOVE);
+                db.setDragView(row.snapshot(null, null));
+                ClipboardContent cc = new ClipboardContent();
+                cc.putString(String.valueOf(dragSourceIndex));
+                db.setContent(cc);
+                row.getStyleClass().add("drag-source-row");
+                event.consume();
+            });
+
+            // -- DRAG OVER --
+            row.setOnDragOver(event -> {
+                if (event.getGestureSource() != row
+                        && event.getDragboard().hasString()
+                        && "None".equals(sortFieldCombo.getValue())) {
+                    event.acceptTransferModes(TransferMode.MOVE);
+                    row.getStyleClass().removeAll("drag-over-top", "drag-over-bottom");
+                    if (event.getY() < row.getHeight() / 2.0) {
+                        row.getStyleClass().add("drag-over-top");
+                    } else {
+                        row.getStyleClass().add("drag-over-bottom");
+                    }
+                }
+                event.consume();
+            });
+
+            // -- DRAG EXITED --
+            row.setOnDragExited(event ->
+                    row.getStyleClass().removeAll("drag-over-top", "drag-over-bottom"));
+
+            // -- DRAG DROPPED --
+            row.setOnDragDropped(event -> {
+                Dragboard db = event.getDragboard();
+                if (!db.hasString()) { event.consume(); return; }
+
+                // Snapshot of items currently shown on this page
+                List<Product> pageItems = new ArrayList<>(tableView.getItems());
+
+                if (dragSourceIndex < 0 || dragSourceIndex >= pageItems.size()) {
+                    event.setDropCompleted(false);
+                    event.consume();
+                    return;
+                }
+
+                // Compute the logical drop position within the page:
+                //   Upper half of row N  => insert before N  (targetPageIndex = N)
+                //   Lower half of row N  => insert after  N  (targetPageIndex = N+1)
+                //   Empty area below all => append           (targetPageIndex = size)
+                int targetPageIndex = row.isEmpty() ? pageItems.size() : row.getIndex();
+                if (!row.isEmpty() && event.getY() >= row.getHeight() / 2.0) {
+                    targetPageIndex++;
+                }
+
+                // No effective movement -- cancel
+                if (targetPageIndex == dragSourceIndex || targetPageIndex == dragSourceIndex + 1) {
+                    event.setDropCompleted(false);
+                    event.consume();
+                    return;
+                }
+
+                // Resolve page indices to global allProducts positions
+                Product movedProduct = pageItems.get(dragSourceIndex);
+                int globalSrc = allProducts.indexOf(movedProduct);
+
+                if (globalSrc < 0) {
+                    event.setDropCompleted(false);
+                    event.consume();
+                    return;
+                }
+
+                // globalDst is the target position in allProducts *before* the
+                // removal of movedProduct.
+                int globalDst;
+                if (targetPageIndex >= pageItems.size()) {
+                    // Drop after the last visible item on this page
+                    Product lastItem = pageItems.get(pageItems.size() - 1);
+                    globalDst = allProducts.indexOf(lastItem) + 1;
+                } else {
+                    Product anchor = pageItems.get(targetPageIndex);
+                    globalDst = allProducts.indexOf(anchor);
+                    if (globalDst < 0) globalDst = allProducts.size();
+                }
+
+                // Apply the in-memory reorder:
+                // Step 1: remove the dragged product (items after it shift left by 1).
+                allProducts.remove(globalSrc);
+                // Step 2: if source was before dest, removal shifted dest left by 1.
+                int insertAt = (globalSrc < globalDst) ? globalDst - 1 : globalDst;
+                insertAt = Math.max(0, Math.min(insertAt, allProducts.size()));
+                allProducts.add(insertAt, movedProduct);
+
+                // Persist new sort_order values in a background thread
+                List<Product> snapshot = new ArrayList<>(allProducts);
+                Thread t = new Thread(() -> productDAO.updateSortOrders(snapshot));
+                t.setDaemon(true);
+                t.start();
+
+                event.setDropCompleted(true);
+                event.consume();
+
+                // Re-apply filter (which also refreshes the current page)
+                Platform.runLater(() -> {
+                    applyFilter();
+                    statusLabel.setText("Product order saved.");
+                });
+            });
+
+            // -- DRAG DONE --
+            row.setOnDragDone(event -> {
+                row.getStyleClass().removeAll("drag-source-row", "drag-over-top", "drag-over-bottom");
+                dragSourceIndex = -1;
+            });
+
+            return row;
+        });
     }
 
     /**
@@ -1191,6 +1343,25 @@ public class CatalogController {
                     if (p.getImagePath() != null && !p.getImagePath().isEmpty()) {
                         imageService.registerImage(p.getCode(), p.getImagePath());
                     }
+                }
+
+                // Assign sort_order to newly imported products (those with sort_order==0)
+                // so they appear at the tail of the list rather than at the top.
+                List<Product> unordered = saved.stream()
+                        .filter(p -> p.getSortOrder() == 0)
+                        .collect(Collectors.toList());
+                if (!unordered.isEmpty()) {
+                    int maxOrder = saved.stream()
+                            .mapToInt(Product::getSortOrder)
+                            .filter(o -> o > 0)
+                            .max()
+                            .orElse(0);
+                    for (int i = 0; i < unordered.size(); i++) {
+                        unordered.get(i).setSortOrder(maxOrder + i + 1);
+                    }
+                    Thread t = new Thread(() -> productDAO.updateSortOrders(saved));
+                    t.setDaemon(true);
+                    t.start();
                 }
 
                 // Open a tab for every selected file (new or existing) and focus the last one

@@ -156,7 +156,7 @@ public class ProductDAO {
     public List<Product> findAll() {
 
         List<Product> products = new ArrayList<>();
-        String sql = "SELECT * FROM products ORDER BY code";
+        String sql = "SELECT * FROM products ORDER BY sort_order ASC, code ASC";
         try (Statement stmt = dbManager.getConnection().createStatement();
                 ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
@@ -251,6 +251,7 @@ public class ProductDAO {
         p.setImagePath(rs.getString("image_path"));
         p.setSourceFile(rs.getString("source_file"));
         p.setSelected(rs.getInt("selected") == 1);
+        p.setSortOrder(rs.getInt("sort_order"));
         for (int i = 0; i < 40; i++) {
             String sc = rs.getString("shop_code_" + (i + 1));
             p.setShopCode(i, sc != null ? sc : "");
@@ -304,7 +305,7 @@ public class ProductDAO {
      */
     public List<Product> findBySourceFilename(String filename) {
         List<Product> products = new ArrayList<>();
-        String sql = "SELECT * FROM products WHERE source_file LIKE ? ORDER BY name";
+        String sql = "SELECT * FROM products WHERE source_file LIKE ? ORDER BY sort_order ASC";
         try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, filename + "%");
             ResultSet rs = ps.executeQuery();
@@ -328,5 +329,37 @@ public class ProductDAO {
             LOG.log(Level.SEVERE, "Failed to check existence by source filename", e);
         }
         return false;
+    }
+
+    /**
+     * Batch-updates the sort_order of all provided products in a single transaction.
+     * The list order determines the persisted order (index 0 gets sort_order = 1, etc.).
+     *
+     * @param products the ordered list whose sort_order values should be saved
+     */
+    public void updateSortOrders(List<Product> products) {
+        if (products == null || products.isEmpty()) return;
+        String sql = "UPDATE products SET sort_order = ? WHERE code = ?";
+        Connection conn = dbManager.getConnection();
+        try {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                for (int i = 0; i < products.size(); i++) {
+                    Product p = products.get(i);
+                    int order = i + 1;
+                    p.setSortOrder(order);
+                    ps.setInt(1, order);
+                    ps.setString(2, p.getCode());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+            conn.commit();
+        } catch (SQLException e) {
+            LOG.log(Level.SEVERE, "Failed to update sort orders", e);
+            try { conn.rollback(); } catch (SQLException ex) { /* ignore */ }
+        } finally {
+            try { conn.setAutoCommit(true); } catch (SQLException e) { /* ignore */ }
+        }
     }
 }

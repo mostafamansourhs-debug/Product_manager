@@ -20,6 +20,7 @@ public class Product {
     private final StringProperty[] shopCodes;
     private final BooleanProperty selected;
     private String sourceFile; // which Excel file this came from
+    private int sortOrder;     // user-defined display order (0 = unset / natural)
 
     public Product() {
         this("", "", "", "", null);
@@ -153,6 +154,10 @@ public class Product {
     // --- Source File ---
     public String getSourceFile() { return sourceFile; }
     public void setSourceFile(String sourceFile) { this.sourceFile = sourceFile; }
+
+    // --- Sort Order ---
+    public int getSortOrder() { return sortOrder; }
+    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
 
     @Override
     public String toString() {

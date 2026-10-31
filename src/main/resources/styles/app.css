@@ -702,3 +702,24 @@
     -fx-border-color: #D0D0D0;
     -fx-border-width: 0 0.5 0 0.5;
 }
+
+/* ======================== DRAG-AND-DROP ROW REORDER ======================== */
+
+/* Row being dragged — fade it so it looks "lifted" */
+.product-table .table-row-cell.drag-source-row {
+    -fx-opacity: 0.55;
+}
+
+/* Drop target indicator — top half: blue top border */
+.product-table .table-row-cell.drag-over-top {
+    -fx-border-color: #1E88E5 transparent transparent transparent;
+    -fx-border-width: 3 0 0 0;
+    -fx-background-color: rgba(30, 136, 229, 0.06);
+}
+
+/* Drop target indicator — bottom half: blue bottom border */
+.product-table .table-row-cell.drag-over-bottom {
+    -fx-border-color: transparent transparent #1E88E5 transparent;
+    -fx-border-width: 0 0 3 0;
+    -fx-background-color: rgba(30, 136, 229, 0.06);
+}
